@@ -1,0 +1,50 @@
+{
+  "schema": "ggen-create.hygen-reference.v1",
+  "reference": {
+    "repository": "ronp001/hygen-create",
+    "ref": "master",
+    "commit": "124fac27df0ddbc498b841ba3e05997ed10e4c39",
+    "tree": "bf088a9e2ab533cd9ba035ecddb0c31f30e292bd"
+  },
+  "files": {
+    "dist/hello.js": "31b71d3edcaa117ddfc26284862641805a696059",
+    "hygen-create.json": "e0c235557d81ddac3dec7b419055bc481fca9bc5",
+    "package.json": "c62cd6a7404e767de8e60d098548e797f8d2e272",
+    "test_strings.json": "b481ab3741e82bc0c911f62151b50e22ce823d2c"
+  },
+  "capture": {
+    "ordered_fields": [
+      "about",
+      "hygen_create_version",
+      "name",
+      "files_and_dirs",
+      "templatize_using_name",
+      "gen_parent_dir"
+    ],
+    "generator": "greeter",
+    "seed": "Hello",
+    "included": [
+      "hygen-create.json",
+      "package.json",
+      "dist/hello.js"
+    ],
+    "gen_parent_dir": false
+  },
+  "documentation": {
+    "required_commands": [
+      "ggen-create start greeter",
+      "ggen-create add package.json dist/hello.js",
+      "ggen-create usename Hello",
+      "ggen-create status",
+      "ggen-create generate",
+      "ggen greeter new --name Hola",
+      "npm run hola"
+    ],
+    "required_facts": [
+      "dist/hola.js",
+      "Hola!",
+      "greeter.1",
+      "no changed revision"
+    ]
+  }
+}

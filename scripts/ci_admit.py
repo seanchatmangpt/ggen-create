@@ -47,6 +47,9 @@ def _lane(root:Path,lane:str)->int:
         for p in sorted([root/"README.md",root/"BOOTSTRAP.md",*root.glob("docs/**/*.md")]):
             if p.is_file() and ("\x00" in p.read_text(encoding="utf-8") or not p.read_text(encoding="utf-8").strip()): bad.append(str(p.relative_to(root)))
         checks.append(_record("docs_integrity",not bad,"invalid markdown: "+", ".join(bad) if bad else "markdown UTF-8/non-empty"))
+        parity = root/"scripts/gall_hygen_parity.py"
+        if parity.is_file():
+            checks.append(_run("hygen_docs_gall",[sys.executable,str(parity.relative_to(root)),"--root",".","--receipt","gall-hygen-parity-receipt.json"],root))
     elif lane=="ontology":
         bad=[]; allowed={".ttl",".trig",".nq",".nt",".jsonld",".rdf",".owl",".keep"}
         for p in root.glob("ontology/**/*"):
@@ -55,9 +58,15 @@ def _lane(root:Path,lane:str)->int:
                 if p.suffix.lower() not in allowed and p.name!=".keep": bad.append(str(p.relative_to(root)))
         checks.append(_record("ontology_surface",not bad,"unsupported ontology files: "+", ".join(bad) if bad else "ontology surface admitted"))
     elif lane=="build":
+        parity = root/"scripts/gall_hygen_parity.py"
+        if parity.is_file():
+            checks += [
+                _run("hygen_parity_unit",[sys.executable,"-m","unittest","discover","-s","tests","-p","test_parity_*.py","-v"],root),
+                _run("hygen_parity_gall",[sys.executable,str(parity.relative_to(root)),"--root",".","--receipt","gall-hygen-parity-receipt.json"],root),
+            ]
         if (root/"Cargo.toml").is_file():
             checks += [_run("cargo_fmt",["cargo","fmt","--all","--","--check"],root),_run("cargo_check",["cargo","check","--workspace","--all-targets"],root),_run("cargo_test",["cargo","test","--workspace","--all-targets"],root)]
-        else: checks.append(_record("build_bootstrap",True,"Cargo.toml absent; no build subject admitted"))
+        else: checks.append(_record("build_bootstrap",True,"Cargo.toml absent; parity subject executed when present"))
     print(json.dumps({"lane":lane,"checks":checks},indent=2,sort_keys=True)); return 0 if all(c["passed"] for c in checks) else 1
 def main(argv:list[str]|None=None)->int:
     p=argparse.ArgumentParser(description=__doc__); p.add_argument("--base",default=""); p.add_argument("--head",default=""); p.add_argument("--repository",default=os.environ.get("GITHUB_REPOSITORY","")); p.add_argument("--receipt",default="ci-errc-receipt.json"); p.add_argument("--github-output",default=os.environ.get("GITHUB_OUTPUT","")); p.add_argument("--changed-file",action="append",default=[]); p.add_argument("--lane",choices=("build","ci","docs","ontology")); a=p.parse_args(argv); root=Path.cwd()

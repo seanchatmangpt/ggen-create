@@ -27,3 +27,19 @@ python3 -m py_compile scripts/ci_router.py scripts/ci_admit.py tests/test_ci_rou
 ruby -e "require 'yaml'; YAML.parse_file(ARGV.fetch(0))" .github/workflows/ci.yml
 python3 scripts/ci_router.py --changed-file .github/workflows/ci.yml --changed-file docs/ci.md
 ```
+
+## Hygen parity Gall crown
+
+Documentation and example changes are not admitted by UTF-8 checks alone. When `scripts/gall_hygen_parity.py` is present:
+
+- `docs_deep` executes the G0–G7 crown so prose cannot drift from the pinned example;
+- `build_deep` executes `tests/test_parity_*.py` and the same crown so fixtures and unit behavior cannot diverge;
+- both lanes manufacture `gall-hygen-parity-receipt.json` with the pinned reference identity, checkpoint evidence, executable Hola consequence, replay digest, failures, and claim ceiling.
+
+Local replay:
+
+```sh
+python3 scripts/ci_admit.py --lane docs
+python3 scripts/ci_admit.py --lane build
+python3 scripts/gall_hygen_parity.py --root . --receipt gall-hygen-parity-receipt.json
+```
