@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ggen.io/schemas/ggen-create/native-task.schema.json",
+  "title": "ggen-create durable task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "taskId",
+    "kind",
+    "status",
+    "statusMessage",
+    "createdAt",
+    "lastUpdatedAt",
+    "ttl",
+    "pollInterval",
+    "contextId",
+    "request",
+    "history",
+    "result",
+    "error"
+  ],
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "kind": {"type": "string", "minLength": 1},
+    "status": {
+      "enum": [
+        "working",
+        "input_required",
+        "auth_required",
+        "completed",
+        "failed",
+        "cancelled",
+        "rejected"
+      ]
+    },
+    "statusMessage": {"type": "string"},
+    "createdAt": {"type": "string", "format": "date-time"},
+    "lastUpdatedAt": {"type": "string", "format": "date-time"},
+    "ttl": {
+      "type": ["integer", "null"],
+      "minimum": 1000,
+      "maximum": 86400000
+    },
+    "pollInterval": {
+      "type": "integer",
+      "minimum": 50,
+      "maximum": 60000
+    },
+    "contextId": {"type": ["string", "null"]},
+    "request": {"type": "object"},
+    "history": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "result": {},
+    "error": {}
+  }
+}
