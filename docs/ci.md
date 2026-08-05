@@ -10,9 +10,9 @@ The admission receipt claim ceiling is `EXACT_HEAD_FAST_AUTHORITY_AND_ROUTING_ON
 
 ## GALL crown
 
-Every candidate also runs eight explicit GALL checkpoints: `exact_head`, `clean_tree`, `routing`, `ci`, `docs`, `ontology`, `build`, and `receipt`. Each checkpoint must transition `CANDIDATE → ADMITTED → ALIVE` and carries a positive witness, an executing negative falsifier, deterministic seed `0`, subprocess replay, exact revision, clean checkout, typed failure, owner, and claim ceiling.
+Every candidate also runs one bounded GALL crown job containing eight explicit checkpoints: `exact_head`, `clean_tree`, `routing`, `ci`, `docs`, `ontology`, `build`, and `receipt`. Each checkpoint must transition `CANDIDATE → ADMITTED → ALIVE` and carries a positive witness, an executing negative falsifier, deterministic seed `0`, subprocess replay, exact revision, clean checkout, typed failure, owner, and claim ceiling.
 
-The crown is `ALIVE` only when every checkpoint is independently `ALIVE`. Path-owned jobs may still be skipped when no owned path changed; those skips are routing decisions, not checkpoint evidence.
+The single runner writes one receipt per checkpoint plus an aggregate crown. The crown is `ALIVE` only when every checkpoint is independently `ALIVE`. Path-owned jobs may still be skipped when no owned path changed; those skips are routing decisions, not checkpoint evidence.
 
 ## Owned lanes
 

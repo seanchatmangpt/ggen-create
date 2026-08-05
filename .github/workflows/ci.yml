@@ -56,46 +56,9 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  gall:
-    name: GALL ${{ matrix.checkpoint }}
-    needs: admission
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions: {contents: read}
-    strategy:
-      fail-fast: false
-      matrix:
-        checkpoint: [exact_head, clean_tree, routing, ci, docs, ontology, build, receipt]
-    env:
-      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-    steps:
-      - name: Checkout exact candidate
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ env.HEAD_SHA }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Execute checkpoint to ALIVE
-        run: >-
-          python3 scripts/gall_checkpoint.py
-          --checkpoint "${{ matrix.checkpoint }}"
-          --base "$BASE_SHA"
-          --head "$HEAD_SHA"
-          --repository "$GITHUB_REPOSITORY"
-          --receipt "$RUNNER_TEMP/gall-${{ matrix.checkpoint }}.json"
-      - name: Upload checkpoint receipt
-        if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: gall-${{ matrix.checkpoint }}-${{ env.HEAD_SHA }}
-          path: ${{ runner.temp }}/gall-${{ matrix.checkpoint }}.json
-          if-no-files-found: error
-          retention-days: 14
-
   gall-crown:
     name: GALL crown ALIVE
-    needs: [admission, gall]
+    needs: admission
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions: {contents: read}
@@ -109,20 +72,32 @@ jobs:
           ref: ${{ env.HEAD_SHA }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Replay complete checkpoint crown
-        run: >-
-          python3 scripts/gall_checkpoint.py
-          --checkpoint all
-          --base "$BASE_SHA"
-          --head "$HEAD_SHA"
-          --repository "$GITHUB_REPOSITORY"
-          --receipt "$RUNNER_TEMP/gall-crown.json"
-      - name: Upload crown receipt
+      - name: Execute every checkpoint and crown
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt_dir="$RUNNER_TEMP/gall"
+          mkdir -p "$receipt_dir"
+          for checkpoint in exact_head clean_tree routing ci docs ontology build receipt; do
+            python3 scripts/gall_checkpoint.py \
+              --checkpoint "$checkpoint" \
+              --base "$BASE_SHA" \
+              --head "$HEAD_SHA" \
+              --repository "$GITHUB_REPOSITORY" \
+              --receipt "$receipt_dir/$checkpoint.json"
+          done
+          python3 scripts/gall_checkpoint.py \
+            --checkpoint all \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --receipt "$receipt_dir/crown.json"
+      - name: Upload checkpoint and crown receipts
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: gall-crown-${{ env.HEAD_SHA }}
-          path: ${{ runner.temp }}/gall-crown.json
+          path: ${{ runner.temp }}/gall/*.json
           if-no-files-found: error
           retention-days: 14
 
