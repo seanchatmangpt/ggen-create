@@ -12,6 +12,7 @@ from ggen_create.cases import (
     values_for,
 )
 from ggen_create.inspect import inspect_session
+from ggen_create.integrity import verify_package
 from ggen_create.model import APP_VERSION, GgenCreateError
 from ggen_create.package import build_package
 from ggen_create.session import (
@@ -319,25 +320,26 @@ class ParityTests(unittest.TestCase):
                 """#!/usr/bin/env python3
 import json
 from pathlib import Path
-import re
-from ggen_create.cases import render_concrete
+from ggen_create.cases import values_for
 
 root = Path.cwd()
 meta = json.loads((root / 'ggen-create-package.json').read_text())
-ontology = (root / 'ontology.ttl').read_text()
-value = re.search(r'gc:name \"(.*?)\"', ontology).group(1)
-seed = meta['parameter']['seed']
-source_root = Path(meta['source_root'])
+value = meta['parameter']['value']
+values = values_for(value)
+
+def render(text):
+    for key, replacement in values.items():
+        text = text.replace('{{ row.' + key + ' }}', replacement)
+    return text
+
 for item in meta['files']:
-    rel, _ = render_concrete(item['source'], seed, value)
-    body, _ = render_concrete(
-        (source_root / item['source']).read_text(),
-        seed,
-        value,
-    )
-    target = root / rel
+    template = (root / item['template']).read_text()
+    parts = template.split('---\n', 2)
+    if len(parts) != 3:
+        raise SystemExit('invalid template: ' + item['template'])
+    target = root / render(item['target'])
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(body)
+    target.write_text(render(parts[2]))
 """,
                 encoding="utf-8",
             )
@@ -395,6 +397,13 @@ for item in meta['files']:
             )
             self.assertTrue(report["reference_comparison"]["equal"])
             self.assertTrue(Path(report["report_path"]).is_file())
+            for label in ("reconstruction", "variation"):
+                integrity = verify_package(
+                    root / f"verify/{label}-run",
+                    allow_extra=True,
+                )
+                self.assertTrue(integrity["valid"], integrity)
+                self.assertTrue(integrity["extra"], integrity)
 
 
 if __name__ == "__main__":
