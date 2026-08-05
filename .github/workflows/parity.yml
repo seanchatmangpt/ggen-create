@@ -17,6 +17,7 @@ on:
       - tests/test_parity.py
       - tests/test_session_paths.py
       - tests/test_session_versions.py
+      - tests/test_verification_refusals.py
       - schemas/capture.schema.json
       - schemas/package-receipt.schema.json
       - ontology/ggen-create.ttl
@@ -37,6 +38,7 @@ on:
       - tests/test_parity.py
       - tests/test_session_paths.py
       - tests/test_session_versions.py
+      - tests/test_verification_refusals.py
       - schemas/capture.schema.json
       - schemas/package-receipt.schema.json
       - ontology/ggen-create.ttl
@@ -77,13 +79,15 @@ jobs:
             tests/test_parity.py \
             tests/test_package_receipts.py \
             tests/test_session_paths.py \
-            tests/test_session_versions.py
+            tests/test_session_versions.py \
+            tests/test_verification_refusals.py
       - name: Execute deterministic parity preflight
         run: |
           python -m unittest discover -s tests -p 'test_parity.py' -v
           python -m unittest discover -s tests -p 'test_package_receipts.py' -v
           python -m unittest discover -s tests -p 'test_session_paths.py' -v
           python -m unittest discover -s tests -p 'test_session_versions.py' -v
+          python -m unittest discover -s tests -p 'test_verification_refusals.py' -v
       - name: Exercise original-compatible CLI journey
         shell: bash
         run: |
@@ -201,8 +205,9 @@ jobs:
               root / "verify/reconstruction-run",
               root / "verify/variation-run",
           ):
-              integrity = verify_package(package)
+              integrity = verify_package(package, allow_extra=True)
               assert integrity["valid"], integrity
+              assert integrity["extra"], integrity
           PY
       - name: Upload parity receipt
         if: always()
