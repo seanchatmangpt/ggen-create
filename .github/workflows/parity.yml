@@ -13,12 +13,14 @@ on:
       - src/ggen_create/package.py
       - src/ggen_create/session.py
       - src/ggen_create/verify.py
+      - tests/test_identifier_safety.py
       - tests/test_package_receipts.py
       - tests/test_parity.py
       - tests/test_session_paths.py
       - tests/test_session_versions.py
       - tests/test_verification_refusals.py
       - schemas/capture.schema.json
+      - schemas/package.schema.json
       - schemas/package-receipt.schema.json
       - ontology/ggen-create.ttl
       - shapes/ggen-create.shacl.ttl
@@ -34,12 +36,14 @@ on:
       - src/ggen_create/package.py
       - src/ggen_create/session.py
       - src/ggen_create/verify.py
+      - tests/test_identifier_safety.py
       - tests/test_package_receipts.py
       - tests/test_parity.py
       - tests/test_session_paths.py
       - tests/test_session_versions.py
       - tests/test_verification_refusals.py
       - schemas/capture.schema.json
+      - schemas/package.schema.json
       - schemas/package-receipt.schema.json
       - ontology/ggen-create.ttl
       - shapes/ggen-create.shacl.ttl
@@ -76,6 +80,7 @@ jobs:
         run: |
           python -m compileall -q \
             src \
+            tests/test_identifier_safety.py \
             tests/test_parity.py \
             tests/test_package_receipts.py \
             tests/test_session_paths.py \
@@ -83,6 +88,7 @@ jobs:
             tests/test_verification_refusals.py
       - name: Execute deterministic parity preflight
         run: |
+          python -m unittest discover -s tests -p 'test_identifier_safety.py' -v
           python -m unittest discover -s tests -p 'test_parity.py' -v
           python -m unittest discover -s tests -p 'test_package_receipts.py' -v
           python -m unittest discover -s tests -p 'test_session_paths.py' -v
