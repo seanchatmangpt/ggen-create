@@ -9,7 +9,7 @@ import tempfile
 from typing import Any
 
 from .cases import parameterize_body, parameterize_path, values_for
-from .model import BuildResult, GgenCreateError
+from .model import BuildResult, GgenCreateError, validate_identifier
 from .session import admitted_files, load_session
 
 PREFIX = "https://ggen.io/ontology/ggen-create#"
@@ -277,11 +277,11 @@ def _package_files(package_dir: Path) -> dict[str, bytes]:
 
 
 def rewrite_package_parameter(package_dir: Path, value: str) -> dict[str, Any]:
-    if not value:
-        raise GgenCreateError(
-            "EMPTY_PARAMETER_REFUSED",
-            "package parameter value must not be empty",
-        )
+    value = validate_identifier(
+        value,
+        code="PARAMETER_VALUE_REFUSED",
+        label="package parameter value",
+    )
     package_dir = package_dir.resolve()
     from .integrity import verify_package
 
@@ -310,17 +310,26 @@ def rewrite_package_parameter(package_dir: Path, value: str) -> dict[str, Any]:
             f"unsupported package schema: {metadata.get('schema')!r}",
         )
     parameter = metadata.get("parameter")
-    if not isinstance(parameter, dict) or not isinstance(parameter.get("seed"), str):
+    if not isinstance(parameter, dict):
         raise GgenCreateError(
             "PACKAGE_METADATA_SCHEMA_REFUSED",
             str(metadata_path),
         )
-    generator = metadata.get("generator")
-    if not isinstance(generator, str) or not generator:
-        raise GgenCreateError(
-            "PACKAGE_METADATA_SCHEMA_REFUSED",
-            "generator is required",
-        )
+    validate_identifier(
+        parameter.get("seed"),
+        code="PACKAGE_METADATA_SCHEMA_REFUSED",
+        label="package parameter seed",
+    )
+    validate_identifier(
+        parameter.get("value"),
+        code="PACKAGE_METADATA_SCHEMA_REFUSED",
+        label="existing package parameter value",
+    )
+    generator = validate_identifier(
+        metadata.get("generator"),
+        code="PACKAGE_METADATA_SCHEMA_REFUSED",
+        label="package generator",
+    )
     old_receipt = _read_json_object(
         receipt_path,
         "PACKAGE_RECEIPT_INVALID_REFUSED",
