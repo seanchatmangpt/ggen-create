@@ -9,7 +9,6 @@ from typing import Any, Sequence
 
 from .a2a import A2AService, serve as serve_a2a
 from .agents import AgentRuntime
-from .doctor import doctor_report
 from .inspect import format_human, inspect_session
 from .mcp import stdio_main
 from .model import GgenCreateError, SESSION_FILE
@@ -36,6 +35,16 @@ def _find(project: str) -> Path:
 def _subject(project: str) -> tuple[Path, Path]:
     session = _find(project)
     return session, session.parent.resolve()
+
+
+def _optional_subject(project: str) -> tuple[Path | None, Path]:
+    try:
+        session, root = _subject(project)
+        return session, root
+    except GgenCreateError as exc:
+        if exc.code != "NO_SESSION_REFUSED":
+            raise
+        return None, Path.cwd().resolve()
 
 
 def _json_arg(raw: str | None) -> dict[str, Any]:
@@ -345,8 +354,13 @@ def _broker_execute(
     *,
     confirm: bool = False,
 ) -> dict[str, Any]:
-    session, subject_root = _subject(project)
     registry = SkillRegistry()
+    skill = registry.get(name)
+    if skill.requires_session:
+        session, subject_root = _subject(project)
+    else:
+        session, subject_root = _optional_subject(project)
+        session = None
     return Broker(subject_root).execute(
         registry.plan(name, arguments),
         session_path=session,
@@ -365,6 +379,17 @@ def _autonomic_arguments(args: argparse.Namespace) -> dict[str, Any]:
         "variation_value": args.variation,
         "ggen_bin": args.ggen_bin,
     }
+
+
+def _agent_context(
+    project: str,
+    skill_name: str | None = None,
+) -> tuple[Path | None, Path]:
+    if skill_name is not None and SkillRegistry().get(skill_name).requires_session:
+        session, root = _subject(project)
+        return session, root
+    session, root = _optional_subject(project)
+    return None, root
 
 
 def run(argv: Sequence[str] | None = None) -> int:
@@ -579,7 +604,12 @@ def run(argv: Sequence[str] | None = None) -> int:
                 confirm=args.confirm,
             )
     elif args.command == "agents":
-        session, subject_root = _subject(project)
+        skill_name = (
+            args.skill
+            if args.agents_command == "dispatch"
+            else None
+        )
+        session, subject_root = _agent_context(project, skill_name)
         runtime = AgentRuntime(subject_root)
         if args.agents_command == "list":
             value = runtime.list()
@@ -626,7 +656,7 @@ def run(argv: Sequence[str] | None = None) -> int:
             confirm=args.confirm,
         )
     elif args.command == "receipt":
-        session, subject_root = _subject(project)
+        _, subject_root = _optional_subject(project)
         store = ReceiptStore(subject_root)
         if args.receipt_command == "list":
             value = store.list()
@@ -645,11 +675,11 @@ def run(argv: Sequence[str] | None = None) -> int:
                 {"path": args.path},
             )
     elif args.command == "doctor":
-        try:
-            _, subject_root = _subject(project)
-        except GgenCreateError:
-            subject_root = Path.cwd()
-        value = doctor_report(subject_root, project=project)
+        value = _broker_execute(
+            project,
+            "doctor.inspect",
+            {"project": project},
+        )["result"]
     else:
         raise GgenCreateError(
             "COMMAND_NOT_IMPLEMENTED_REFUSED",
