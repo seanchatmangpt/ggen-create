@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any
 
 APP_VERSION = "0.4.0"
@@ -17,6 +18,18 @@ ABOUT = (
     "generators that can be executed using hygen."
 )
 
+_IDENTIFIER_PATTERN = re.compile(
+    r"[A-Za-z0-9](?:[A-Za-z0-9 _.-]{0,126}[A-Za-z0-9])?\Z"
+)
+_WINDOWS_DEVICE_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
+}
+
 
 class GgenCreateError(RuntimeError):
     """Typed refusal raised by every unlawful create-time transition."""
@@ -25,6 +38,33 @@ class GgenCreateError(RuntimeError):
         self.code = code
         self.detail = message
         super().__init__(f"{code}: {message}")
+
+
+def validate_identifier(
+    value: Any,
+    *,
+    code: str = "IDENTIFIER_REFUSED",
+    label: str = "identifier",
+) -> str:
+    """Admit a bounded cross-platform logical name before path actuation."""
+
+    if not isinstance(value, str) or not value:
+        raise GgenCreateError(code, f"{label} must be a non-empty string")
+    if value != value.strip():
+        raise GgenCreateError(code, f"{label} must not have edge whitespace")
+    if not _IDENTIFIER_PATTERN.fullmatch(value):
+        raise GgenCreateError(
+            code,
+            f"{label} may contain ASCII letters, digits, internal spaces, "
+            "underscore, hyphen, and dot only; length must be at most 128",
+        )
+    stem = value.split(".", 1)[0].upper()
+    if stem in _WINDOWS_DEVICE_NAMES:
+        raise GgenCreateError(
+            code,
+            f"{label} is a reserved cross-platform device name: {value!r}",
+        )
+    return value
 
 
 @dataclass(frozen=True)
