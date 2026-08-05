@@ -1,14 +1,21 @@
 name: CI Admission
+
 on:
   pull_request:
   push:
     branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
 concurrency:
   group: ci-admission-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
 jobs:
   admission:
     name: exact-head admission
@@ -32,7 +39,7 @@ jobs:
       - name: Admit exact head and route evidence
         id: admit
         env:
-          RECEIPT_PATH: ci-errc-receipt.json
+          RECEIPT_PATH: ${{ runner.temp }}/ci-errc-receipt.json
         run: >-
           python3 scripts/ci_admit.py
           --base "$BASE_SHA"
@@ -41,26 +48,73 @@ jobs:
           --receipt "$RECEIPT_PATH"
           --github-output "$GITHUB_OUTPUT"
       - name: Upload exact-head receipt
-        if: ${{ always() && hashFiles('ci-errc-receipt.json') != '' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ci-errc-receipt-${{ env.HEAD_SHA }}
-          path: ci-errc-receipt.json
+          path: ${{ runner.temp }}/ci-errc-receipt.json
           if-no-files-found: error
           retention-days: 14
+
+  gall-crown:
+    name: GALL crown ALIVE
+    needs: admission
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: {contents: read}
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Execute every checkpoint and crown
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt_dir="$RUNNER_TEMP/gall"
+          mkdir -p "$receipt_dir"
+          for checkpoint in exact_head clean_tree routing ci docs ontology build receipt; do
+            python3 scripts/gall_checkpoint.py \
+              --checkpoint "$checkpoint" \
+              --base "$BASE_SHA" \
+              --head "$HEAD_SHA" \
+              --repository "$GITHUB_REPOSITORY" \
+              --receipt "$receipt_dir/$checkpoint.json"
+          done
+          python3 scripts/gall_checkpoint.py \
+            --checkpoint all \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --receipt "$receipt_dir/crown.json"
+      - name: Upload checkpoint and crown receipts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gall-crown-${{ env.HEAD_SHA }}
+          path: ${{ runner.temp }}/gall/*.json
+          if-no-files-found: error
+          retention-days: 14
+
   ci-deep:
-    name: CI self evidence
+    name: CI self evidence (path-owned)
     needs: admission
     if: ${{ needs.admission.outputs.ci_deep == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions: {contents: read}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0, persist-credentials: false}
       - run: python3 scripts/ci_admit.py --lane ci
+
   docs-deep:
-    name: documentation evidence
+    name: documentation evidence (path-owned)
     needs: admission
     if: ${{ needs.admission.outputs.docs_deep == 'true' }}
     runs-on: ubuntu-latest
@@ -68,10 +122,11 @@ jobs:
     permissions: {contents: read}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0, persist-credentials: false}
       - run: python3 scripts/ci_admit.py --lane docs
+
   ontology-deep:
-    name: ontology evidence
+    name: ontology evidence (path-owned)
     needs: admission
     if: ${{ needs.admission.outputs.ontology_deep == 'true' }}
     runs-on: ubuntu-latest
@@ -79,10 +134,11 @@ jobs:
     permissions: {contents: read}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0, persist-credentials: false}
       - run: python3 scripts/ci_admit.py --lane ontology
+
   build-deep:
-    name: build evidence
+    name: build evidence (path-owned)
     needs: admission
     if: ${{ needs.admission.outputs.build_deep == 'true' }}
     runs-on: ubuntu-latest
@@ -90,5 +146,5 @@ jobs:
     permissions: {contents: read}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", fetch-depth: 0, persist-credentials: false}
       - run: python3 scripts/ci_admit.py --lane build
