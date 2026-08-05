@@ -64,7 +64,11 @@ def doctor_report(
         }
     except GgenCreateError as exc:
         checks["capture"] = {
-            "state": "BLOCKED",
+            "state": (
+                "PARTIAL_ALIVE"
+                if exc.code == "NO_SESSION_REFUSED"
+                else "BLOCKED"
+            ),
             "refusal": exc.code,
             "detail": exc.detail,
         }
