@@ -20,9 +20,12 @@ def utc_now() -> str:
 
 def parse_timestamp(value: str) -> datetime:
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except (TypeError, ValueError) as exc:
         raise GgenCreateError("TIMESTAMP_PARSE_REFUSED", repr(value)) from exc
+    if parsed.tzinfo is None:
+        raise GgenCreateError("TIMESTAMP_PARSE_REFUSED", repr(value))
+    return parsed.astimezone(timezone.utc)
 
 
 def canonical_json(value: Any) -> bytes:
@@ -63,7 +66,11 @@ def atomic_write_json(path: Path, value: Any) -> None:
         raise
 
 
-def require_under(root: Path, candidate: Path, code: str = "PATH_ESCAPE_REFUSED") -> Path:
+def require_under(
+    root: Path,
+    candidate: Path,
+    code: str = "PATH_ESCAPE_REFUSED",
+) -> Path:
     root = root.resolve()
     candidate = candidate.resolve()
     try:
@@ -118,11 +125,14 @@ class Intent:
         claimed = body.pop("digest")
         if digest_json(body) != claimed:
             raise GgenCreateError(
-                "INTENT_DIGEST_REFUSED", f"intent {self.intent_id} digest mismatch"
+                "INTENT_DIGEST_REFUSED",
+                f"intent {self.intent_id} digest mismatch",
             )
 
 
 class ReceiptStore:
+    _LOCK = threading.RLock()
+
     def __init__(self, subject_root: Path):
         self.subject_root = subject_root.resolve()
         self.root = self.subject_root / ".ggen-create" / "receipts"
@@ -136,51 +146,67 @@ class ReceiptStore:
         outputs: dict[str, Any],
         parent: str | None = None,
     ) -> dict[str, Any]:
-        latest = self.latest()
-        if parent is None and latest is not None:
-            parent = latest.get("receipt_digest")
-        receipt_id = str(uuid4())
-        payload = {
-            "schema": "ggen-create-native-receipt/0.2",
-            "receipt_id": receipt_id,
-            "timestamp": utc_now(),
-            "operation": operation,
-            "state": state,
-            "subject_root": str(self.subject_root),
-            "inputs": inputs,
-            "outputs": outputs,
-            "parent": parent,
-            "algorithm": "sha256",
-        }
-        receipt = {**payload, "receipt_digest": digest_json(payload)}
-        path = self.root / f"{receipt_id}.json"
-        atomic_write_json(path, receipt)
-        atomic_write_json(self.root / "latest.json", receipt)
-        return {**receipt, "path": str(path)}
+        with self._LOCK:
+            latest = self.latest()
+            if parent is None and latest is not None:
+                parent = latest.get("receipt_digest")
+            receipt_id = str(uuid4())
+            payload = {
+                "schema": "ggen-create-native-receipt/0.2",
+                "receipt_id": receipt_id,
+                "timestamp": utc_now(),
+                "operation": operation,
+                "state": state,
+                "subject_root": str(self.subject_root),
+                "inputs": inputs,
+                "outputs": outputs,
+                "parent": parent,
+                "algorithm": "sha256",
+            }
+            receipt = {**payload, "receipt_digest": digest_json(payload)}
+            path = self.root / f"{receipt_id}.json"
+            atomic_write_json(path, receipt)
+            atomic_write_json(self.root / "latest.json", receipt)
+            return {**receipt, "path": str(path)}
+
+    def _read(self, path: Path) -> dict[str, Any]:
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise GgenCreateError(
+                "RECEIPT_PARSE_REFUSED",
+                f"{path}: {exc}",
+            ) from exc
+        if not isinstance(value, dict):
+            raise GgenCreateError(
+                "RECEIPT_PARSE_REFUSED",
+                f"{path}: receipt must be an object",
+            )
+        return value
 
     def list(self) -> list[dict[str, Any]]:
         if not self.root.is_dir():
             return []
         result: list[dict[str, Any]] = []
-        for path in sorted(self.root.glob("*.json")):
+        for path in self.root.glob("*.json"):
             if path.name == "latest.json":
                 continue
-            try:
-                value = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                continue
+            value = self._read(path)
             value["path"] = str(path)
             result.append(value)
+        result.sort(
+            key=lambda item: (
+                str(item.get("timestamp", "")),
+                str(item.get("receipt_id", "")),
+            )
+        )
         return result
 
     def latest(self) -> dict[str, Any] | None:
         path = self.root / "latest.json"
         if not path.is_file():
             return None
-        try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise GgenCreateError("RECEIPT_PARSE_REFUSED", str(exc)) from exc
+        value = self._read(path)
         value["path"] = str(path)
         return value
 
@@ -190,8 +216,17 @@ class ReceiptStore:
             receipt = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise GgenCreateError("RECEIPT_PARSE_REFUSED", str(exc)) from exc
+        if not isinstance(receipt, dict):
+            raise GgenCreateError(
+                "RECEIPT_PARSE_REFUSED",
+                "receipt must be an object",
+            )
         claimed = receipt.get("receipt_digest")
-        payload = {key: value for key, value in receipt.items() if key != "receipt_digest"}
+        payload = {
+            key: value
+            for key, value in receipt.items()
+            if key != "receipt_digest"
+        }
         computed = digest_json(payload)
         valid = isinstance(claimed, str) and computed == claimed
         return {
@@ -202,25 +237,121 @@ class ReceiptStore:
             "operation": receipt.get("operation"),
             "state": receipt.get("state"),
             "parent": receipt.get("parent"),
+            "subject_root": receipt.get("subject_root"),
         }
 
     def verify_chain(self) -> dict[str, Any]:
         receipts = self.list()
-        previous: str | None = None
-        checks: list[dict[str, Any]] = []
+        latest = self.latest()
+        if not receipts:
+            return {
+                "valid": latest is None,
+                "count": 0,
+                "latest_valid": latest is None,
+                "root_count": 0,
+                "branch_count": 0,
+                "orphan_count": 0,
+                "receipts": [],
+            }
+
+        by_digest: dict[str, dict[str, Any]] = {}
+        duplicate_digests: set[str] = set()
+        checks_by_digest: dict[str, dict[str, Any]] = {}
         for receipt in receipts:
             check = self.verify(Path(receipt["path"]))
-            chain_valid = receipt.get("parent") == previous
-            checks.append({**check, "chain_valid": chain_valid})
-            previous = receipt.get("receipt_digest")
-        latest = self.latest()
-        latest_valid = latest is None or latest.get("receipt_digest") == previous
+            claimed = receipt.get("receipt_digest")
+            if isinstance(claimed, str):
+                if claimed in by_digest:
+                    duplicate_digests.add(claimed)
+                by_digest[claimed] = receipt
+                checks_by_digest[claimed] = check
+
+        roots = [
+            receipt
+            for receipt in receipts
+            if receipt.get("parent") is None
+        ]
+        children: dict[str, list[dict[str, Any]]] = {}
+        orphans: list[dict[str, Any]] = []
+        for receipt in receipts:
+            parent = receipt.get("parent")
+            if parent is None:
+                continue
+            if not isinstance(parent, str) or parent not in by_digest:
+                orphans.append(receipt)
+                continue
+            children.setdefault(parent, []).append(receipt)
+
+        ordered: list[dict[str, Any]] = []
+        visited: set[str] = set()
+        branch_count = sum(
+            1 for values in children.values() if len(values) != 1
+        )
+        current = roots[0] if len(roots) == 1 else None
+        while current is not None:
+            digest = current.get("receipt_digest")
+            if not isinstance(digest, str) or digest in visited:
+                break
+            visited.add(digest)
+            check = checks_by_digest.get(
+                digest,
+                {
+                    "path": current.get("path"),
+                    "valid": False,
+                    "claimed": digest,
+                    "computed": None,
+                    "operation": current.get("operation"),
+                    "state": current.get("state"),
+                    "parent": current.get("parent"),
+                    "subject_root": current.get("subject_root"),
+                },
+            )
+            ordered.append(
+                {
+                    **check,
+                    "chain_valid": (
+                        current.get("subject_root")
+                        == str(self.subject_root)
+                    ),
+                }
+            )
+            next_items = children.get(digest, [])
+            current = next_items[0] if len(next_items) == 1 else None
+
+        latest_digest = (
+            latest.get("receipt_digest") if latest is not None else None
+        )
+        tail_digest = (
+            ordered[-1].get("claimed") if ordered else None
+        )
+        latest_valid = (
+            latest is not None
+            and latest_digest == tail_digest
+            and latest_digest in by_digest
+        )
+        complete = len(visited) == len(receipts)
+        valid = (
+            len(roots) == 1
+            and not duplicate_digests
+            and not orphans
+            and branch_count == 0
+            and complete
+            and latest_valid
+            and all(
+                item["valid"] and item["chain_valid"]
+                for item in ordered
+            )
+        )
         return {
-            "valid": all(item["valid"] and item["chain_valid"] for item in checks)
-            and latest_valid,
-            "count": len(checks),
+            "valid": valid,
+            "count": len(receipts),
             "latest_valid": latest_valid,
-            "receipts": checks,
+            "root_count": len(roots),
+            "branch_count": branch_count,
+            "orphan_count": len(orphans),
+            "duplicate_digest_count": len(duplicate_digests),
+            "complete": complete,
+            "receipts": ordered,
         }
 
 
@@ -239,9 +370,16 @@ class TaskStore:
         self._lock = threading.RLock()
 
     def _path(self, task_id: str) -> Path:
-        allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+        allowed = (
+            "abcdefghijklmnopqrstuvwxyz"
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "0123456789-_"
+        )
         if not task_id or any(ch not in allowed for ch in task_id):
-            raise GgenCreateError("TASK_ID_REFUSED", f"invalid task id: {task_id!r}")
+            raise GgenCreateError(
+                "TASK_ID_REFUSED",
+                f"invalid task id: {task_id!r}",
+            )
         return self.root / f"{task_id}.json"
 
     @staticmethod
@@ -255,15 +393,22 @@ class TaskStore:
         if ttl is None:
             return False
         created = parse_timestamp(str(task["createdAt"]))
-        return datetime.now(timezone.utc) >= created + timedelta(milliseconds=int(ttl))
+        return datetime.now(timezone.utc) >= created + timedelta(
+            milliseconds=int(ttl)
+        )
 
     def _read(self, path: Path) -> dict[str, Any]:
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise GgenCreateError("TASK_PARSE_REFUSED", str(exc)) from exc
-        if not isinstance(value, dict) or not isinstance(value.get("taskId"), str):
-            raise GgenCreateError("TASK_PARSE_REFUSED", f"invalid task document: {path}")
+        if not isinstance(value, dict) or not isinstance(
+            value.get("taskId"), str
+        ):
+            raise GgenCreateError(
+                "TASK_PARSE_REFUSED",
+                f"invalid task document: {path}",
+            )
         return value
 
     def create(
@@ -285,7 +430,10 @@ class TaskStore:
             "createdAt": now,
             "lastUpdatedAt": now,
             "ttl": self._bounded_ttl(ttl),
-            "pollInterval": max(50, min(int(poll_interval), 60_000)),
+            "pollInterval": max(
+                50,
+                min(int(poll_interval), 60_000),
+            ),
             "contextId": context_id,
             "request": request,
             "history": [request],
@@ -300,7 +448,10 @@ class TaskStore:
         path = self._path(task_id)
         with self._lock:
             if not path.is_file():
-                raise GgenCreateError("TASK_NOT_FOUND_REFUSED", task_id)
+                raise GgenCreateError(
+                    "TASK_NOT_FOUND_REFUSED",
+                    task_id,
+                )
             task = self._read(path)
             if self._expired(task):
                 path.unlink(missing_ok=True)
@@ -326,7 +477,8 @@ class TaskStore:
         current = str(task.get("status"))
         if status not in self.TRANSITIONS.get(current, set()):
             raise GgenCreateError(
-                "TASK_TRANSITION_REFUSED", f"{task_id}: {current} -> {status}"
+                "TASK_TRANSITION_REFUSED",
+                f"{task_id}: {current} -> {status}",
             )
         task["status"] = status
         task["statusMessage"] = message
@@ -334,10 +486,17 @@ class TaskStore:
         task["error"] = error
         return self._update(task)
 
-    def resume(self, task_id: str, request: dict[str, Any]) -> dict[str, Any]:
+    def resume(
+        self,
+        task_id: str,
+        request: dict[str, Any],
+    ) -> dict[str, Any]:
         task = self.get(task_id)
         if task["status"] not in self.INTERRUPTED:
-            raise GgenCreateError("TASK_NOT_RESUMABLE_REFUSED", task_id)
+            raise GgenCreateError(
+                "TASK_NOT_RESUMABLE_REFUSED",
+                task_id,
+            )
         task["history"].append(request)
         task["request"] = request
         task["status"] = "working"
@@ -348,15 +507,25 @@ class TaskStore:
 
     def complete(self, task_id: str, result: Any) -> dict[str, Any]:
         return self._transition(
-            task_id, "completed", message="Execution completed.", result=result
+            task_id,
+            "completed",
+            message="Execution completed.",
+            result=result,
         )
 
     def fail(self, task_id: str, error: Any) -> dict[str, Any]:
         return self._transition(
-            task_id, "failed", message="Execution failed.", error=error
+            task_id,
+            "failed",
+            message="Execution failed.",
+            error=error,
         )
 
-    def require_input(self, task_id: str, request: Any) -> dict[str, Any]:
+    def require_input(
+        self,
+        task_id: str,
+        request: Any,
+    ) -> dict[str, Any]:
         return self._transition(
             task_id,
             "input_required",
@@ -364,7 +533,11 @@ class TaskStore:
             result=request,
         )
 
-    def require_auth(self, task_id: str, request: Any) -> dict[str, Any]:
+    def require_auth(
+        self,
+        task_id: str,
+        request: Any,
+    ) -> dict[str, Any]:
         return self._transition(
             task_id,
             "auth_required",
@@ -374,12 +547,23 @@ class TaskStore:
 
     def reject(self, task_id: str, error: Any) -> dict[str, Any]:
         return self._transition(
-            task_id, "rejected", message="Execution was rejected.", error=error
+            task_id,
+            "rejected",
+            message="Execution was rejected.",
+            error=error,
         )
 
     def cancel(self, task_id: str) -> dict[str, Any]:
+        task = self.get(task_id)
+        if task["status"] in self.TERMINAL:
+            raise GgenCreateError(
+                "TASK_NOT_CANCELABLE_REFUSED",
+                task_id,
+            )
         return self._transition(
-            task_id, "cancelled", message="Cancelled by request."
+            task_id,
+            "cancelled",
+            message="Cancelled by request.",
         )
 
     def result(self, task_id: str) -> Any:
@@ -389,11 +573,20 @@ class TaskStore:
         if task["status"] in self.INTERRUPTED:
             return task["result"]
         if task["status"] == "failed":
-            raise GgenCreateError("TASK_EXECUTION_REFUSED", json.dumps(task["error"]))
+            raise GgenCreateError(
+                "TASK_EXECUTION_REFUSED",
+                json.dumps(task["error"]),
+            )
         if task["status"] == "rejected":
-            raise GgenCreateError("TASK_REJECTED_REFUSED", json.dumps(task["error"]))
+            raise GgenCreateError(
+                "TASK_REJECTED_REFUSED",
+                json.dumps(task["error"]),
+            )
         if task["status"] == "cancelled":
-            raise GgenCreateError("TASK_CANCELLED_REFUSED", task_id)
+            raise GgenCreateError(
+                "TASK_CANCELLED_REFUSED",
+                task_id,
+            )
         raise GgenCreateError("TASK_NOT_READY_REFUSED", task_id)
 
     def prune(self) -> int:
@@ -424,32 +617,56 @@ class TaskStore:
         try:
             offset = int(cursor or "0")
         except ValueError as exc:
-            raise GgenCreateError("TASK_CURSOR_REFUSED", repr(cursor)) from exc
+            raise GgenCreateError(
+                "TASK_CURSOR_REFUSED",
+                repr(cursor),
+            ) from exc
         if offset < 0:
-            raise GgenCreateError("TASK_CURSOR_REFUSED", repr(cursor))
+            raise GgenCreateError(
+                "TASK_CURSOR_REFUSED",
+                repr(cursor),
+            )
         values = self.list()
         if status is not None:
-            values = [item for item in values if item.get("status") == status]
+            values = [
+                item
+                for item in values
+                if item.get("status") == status
+            ]
         if context_id is not None:
-            values = [item for item in values if item.get("contextId") == context_id]
+            values = [
+                item
+                for item in values
+                if item.get("contextId") == context_id
+            ]
         page = values[offset : offset + page_size]
         next_offset = offset + len(page)
         return {
             "tasks": page,
             "totalSize": len(values),
             "pageSize": len(page),
-            "nextCursor": str(next_offset) if next_offset < len(values) else None,
+            "nextCursor": (
+                str(next_offset)
+                if next_offset < len(values)
+                else None
+            ),
         }
 
     def list(self) -> list[dict[str, Any]]:
         if not self.root.is_dir():
             return []
         values: list[dict[str, Any]] = []
-        for path in sorted(self.root.glob("*.json")):
+        for path in self.root.glob("*.json"):
             try:
                 task = self._read(path)
             except GgenCreateError:
                 continue
             if not self._expired(task):
                 values.append(task)
+        values.sort(
+            key=lambda item: (
+                str(item.get("createdAt", "")),
+                str(item.get("taskId", "")),
+            )
+        )
         return values
