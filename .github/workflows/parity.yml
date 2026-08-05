@@ -8,12 +8,17 @@ on:
       - src/ggen_create/cases.py
       - src/ggen_create/cli.py
       - src/ggen_create/inspect.py
+      - src/ggen_create/integrity.py
       - src/ggen_create/model.py
       - src/ggen_create/package.py
       - src/ggen_create/session.py
       - src/ggen_create/verify.py
+      - tests/test_package_receipts.py
       - tests/test_parity.py
+      - tests/test_session_paths.py
+      - tests/test_session_versions.py
       - schemas/capture.schema.json
+      - schemas/package-receipt.schema.json
       - ontology/ggen-create.ttl
       - shapes/ggen-create.shacl.ttl
       - .github/workflows/parity.yml
@@ -23,12 +28,17 @@ on:
       - src/ggen_create/cases.py
       - src/ggen_create/cli.py
       - src/ggen_create/inspect.py
+      - src/ggen_create/integrity.py
       - src/ggen_create/model.py
       - src/ggen_create/package.py
       - src/ggen_create/session.py
       - src/ggen_create/verify.py
+      - tests/test_package_receipts.py
       - tests/test_parity.py
+      - tests/test_session_paths.py
+      - tests/test_session_versions.py
       - schemas/capture.schema.json
+      - schemas/package-receipt.schema.json
       - ontology/ggen-create.ttl
       - shapes/ggen-create.shacl.ttl
       - .github/workflows/parity.yml
@@ -56,12 +66,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install ggen-create
-        run: python -m pip install -e .
-      - name: Compile Python sources
-        run: python -m compileall -q src tests/test_parity.py
-      - name: Execute parity unit tests
-        run: python -m unittest discover -s tests -p 'test_parity.py' -v
+      - name: Install ggen-create and validators
+        run: |
+          python -m pip install -e .
+          python -m pip install jsonschema
+      - name: Compile parity sources
+        run: |
+          python -m compileall -q \
+            src \
+            tests/test_parity.py \
+            tests/test_package_receipts.py \
+            tests/test_session_paths.py \
+            tests/test_session_versions.py
+      - name: Execute deterministic parity preflight
+        run: |
+          python -m unittest discover -s tests -p 'test_parity.py' -v
+          python -m unittest discover -s tests -p 'test_package_receipts.py' -v
+          python -m unittest discover -s tests -p 'test_session_paths.py' -v
+          python -m unittest discover -s tests -p 'test_session_versions.py' -v
       - name: Exercise original-compatible CLI journey
         shell: bash
         run: |
@@ -81,6 +103,7 @@ jobs:
           ggen-create usename Hello
           ggen-create status --verbose
           ggen-create generate --output "$RUNNER_TEMP/packages"
+          ggen-create package verify --output "$RUNNER_TEMP/packages"
           test -f "$RUNNER_TEMP/packages/greeter/ggen.toml"
           test -f "$RUNNER_TEMP/packages/greeter/receipt.json"
 
@@ -168,9 +191,18 @@ jobs:
             --reference-id "ronp001/hygen-create@0.2.1+hygen@1.6.2"
           python - <<'PY'
           import json, os, pathlib
-          report = json.loads((pathlib.Path(os.environ["RUNNER_TEMP"]) / "verify/parity-report.json").read_text())
+          from ggen_create.integrity import verify_package
+
+          root = pathlib.Path(os.environ["RUNNER_TEMP"])
+          report = json.loads((root / "verify/parity-report.json").read_text())
           assert report["checkpoints"]["P7_PARITY_CROWN"] == "ALIVE", report
           assert report["reference_comparison"]["equal"] is True, report
+          for package in (
+              root / "verify/reconstruction-run",
+              root / "verify/variation-run",
+          ):
+              integrity = verify_package(package)
+              assert integrity["valid"], integrity
           PY
       - name: Upload parity receipt
         if: always()
