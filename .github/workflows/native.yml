@@ -48,6 +48,7 @@ jobs:
               Path("schemas/a2a-agent-card.schema.json"),
               Path("schemas/native-receipt.schema.json"),
               Path("schemas/native-task.schema.json"),
+              Path("schemas/package-receipt.schema.json"),
           )
           for path in schema_paths:
               document = json.loads(path.read_text())
@@ -130,7 +131,7 @@ jobs:
               "method": "tools/list",
               "params": {},
           })
-          assert len(tools["result"]["tools"]) >= 9
+          assert len(tools["result"]["tools"]) == 14
           started = mcp.handle({
               "jsonrpc": "2.0",
               "id": 3,
@@ -193,20 +194,48 @@ jobs:
           cd "$RUNNER_TEMP/native-subject"
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
 
           from jsonschema import Draft202012Validator, FormatChecker
 
-          repository = Path(__import__("os").environ["GITHUB_WORKSPACE"])
-          receipt_schema = json.loads((repository / "schemas/native-receipt.schema.json").read_text())
-          task_schema = json.loads((repository / "schemas/native-task.schema.json").read_text())
-          receipt_validator = Draft202012Validator(receipt_schema, format_checker=FormatChecker())
-          task_validator = Draft202012Validator(task_schema, format_checker=FormatChecker())
+          repository = Path(os.environ["GITHUB_WORKSPACE"])
+          native_receipt_schema = json.loads(
+              (repository / "schemas/native-receipt.schema.json").read_text()
+          )
+          package_receipt_schema = json.loads(
+              (repository / "schemas/package-receipt.schema.json").read_text()
+          )
+          task_schema = json.loads(
+              (repository / "schemas/native-task.schema.json").read_text()
+          )
+          native_receipt_validator = Draft202012Validator(
+              native_receipt_schema,
+              format_checker=FormatChecker(),
+          )
+          package_receipt_validator = Draft202012Validator(
+              package_receipt_schema,
+              format_checker=FormatChecker(),
+          )
+          task_validator = Draft202012Validator(
+              task_schema,
+              format_checker=FormatChecker(),
+          )
 
           receipts = list(Path(".ggen-create/receipts").glob("*.json"))
           assert receipts
           for path in receipts:
-              receipt_validator.validate(json.loads(path.read_text()))
+              native_receipt_validator.validate(json.loads(path.read_text()))
+
+          package_receipts = [
+              path
+              for path in Path.cwd().glob("**/receipt.json")
+              if ".ggen-create/receipts" not in path.as_posix()
+          ]
+          assert package_receipts
+          for path in package_receipts:
+              package_receipt_validator.validate(json.loads(path.read_text()))
+
           tasks = list(Path(".ggen-create/tasks").glob("*/*.json"))
           assert tasks
           for path in tasks:
