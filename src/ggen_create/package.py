@@ -96,10 +96,11 @@ def _planned_files(session_path: Path) -> dict[str, bytes]:
     files = admitted_files(session_path)
     query = sparql_query()
     planned: dict[str, bytes] = {}
+    # This is intentionally the frontmatter schema only. A project version is
+    # a declarative-schema marker in ggen and makes the manifest ambiguous.
     planned["ggen.toml"] = (
         "[project]\n"
-        f"name = {json.dumps(session['name'])}\n"
-        'version = "0.1.0"\n\n'
+        f"name = {json.dumps(session['name'])}\n\n"
         "[ontology]\n"
         'source = "ontology.ttl"\n\n'
         "[templates]\n"
