@@ -7,9 +7,12 @@ import subprocess
 from typing import Any
 
 from .cases import render_concrete, values_for
-from .model import GgenCreateError
+from .model import GgenCreateError, SESSION_FILE
 from .package import build_package, rewrite_package_parameter
 from .session import admitted_files, load_session
+
+ORIGINAL_SESSION_FILE = "hygen-create.json"
+_REFERENCE_SESSION_CANONICAL_PATH = ".ggen-create-reference/capture-session.json"
 
 
 def tree_manifest(root: Path) -> dict[str, bytes]:
@@ -26,13 +29,108 @@ def compare_trees(left: Path, right: Path) -> dict[str, Any]:
     left_paths = set(left_map)
     right_paths = set(right_map)
     differing = sorted(
-        path for path in left_paths & right_paths if left_map[path] != right_map[path]
+        path
+        for path in left_paths & right_paths
+        if left_map[path] != right_map[path]
     )
     return {
         "equal": left_map == right_map,
         "only_left": sorted(left_paths - right_paths),
         "only_right": sorted(right_paths - left_paths),
         "different": differing,
+    }
+
+
+def _canonical_capture_document(raw: bytes, *, source_name: str) -> bytes:
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise GgenCreateError(
+            "REFERENCE_CAPTURE_PARSE_REFUSED",
+            f"{source_name}: {exc}",
+        ) from exc
+    if not isinstance(value, dict):
+        raise GgenCreateError(
+            "REFERENCE_CAPTURE_SCHEMA_REFUSED",
+            f"{source_name}: capture document must be an object",
+        )
+    files = value.get("files_and_dirs")
+    if not isinstance(files, dict):
+        raise GgenCreateError(
+            "REFERENCE_CAPTURE_SCHEMA_REFUSED",
+            f"{source_name}: files_and_dirs must be an object",
+        )
+
+    normalized_files: dict[str, Any] = {}
+    for path, included in files.items():
+        canonical_path = SESSION_FILE if path == ORIGINAL_SESSION_FILE else path
+        if canonical_path in normalized_files and normalized_files[canonical_path] != included:
+            raise GgenCreateError(
+                "REFERENCE_CAPTURE_ALIAS_COLLISION_REFUSED",
+                f"{source_name}: conflicting entries for {canonical_path}",
+            )
+        normalized_files[canonical_path] = included
+
+    normalized = dict(value)
+    normalized["files_and_dirs"] = normalized_files
+    # Tool release identity is intentionally not artifact semantics. The exact
+    # reference identity is carried separately by reference_id in the report.
+    if "hygen_create_version" in normalized:
+        normalized["hygen_create_version"] = "<capture-tool-version>"
+    return json.dumps(
+        normalized,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+
+def _reference_manifest(root: Path) -> tuple[dict[str, bytes], list[dict[str, str]]]:
+    manifest = tree_manifest(root)
+    aliases = [name for name in (ORIGINAL_SESSION_FILE, SESSION_FILE) if name in manifest]
+    if len(aliases) > 1:
+        raise GgenCreateError(
+            "REFERENCE_CAPTURE_ALIAS_COLLISION_REFUSED",
+            f"{root} contains both {ORIGINAL_SESSION_FILE} and {SESSION_FILE}",
+        )
+    normalizations: list[dict[str, str]] = []
+    if aliases:
+        source_name = aliases[0]
+        raw = manifest.pop(source_name)
+        manifest[_REFERENCE_SESSION_CANONICAL_PATH] = _canonical_capture_document(
+            raw,
+            source_name=source_name,
+        )
+        normalizations.append(
+            {
+                "source": source_name,
+                "canonical": _REFERENCE_SESSION_CANONICAL_PATH,
+                "policy": "capture-session-semantic-v1",
+            }
+        )
+    return manifest, normalizations
+
+
+def compare_reference_trees(left: Path, right: Path) -> dict[str, Any]:
+    left_map, left_normalizations = _reference_manifest(left)
+    right_map, right_normalizations = _reference_manifest(right)
+    left_paths = set(left_map)
+    right_paths = set(right_map)
+    differing = sorted(
+        path
+        for path in left_paths & right_paths
+        if left_map[path] != right_map[path]
+    )
+    return {
+        "equal": left_map == right_map,
+        "only_left": sorted(left_paths - right_paths),
+        "only_right": sorted(right_paths - left_paths),
+        "different": differing,
+        "normalizations": {
+            "left": left_normalizations,
+            "right": right_normalizations,
+        },
+        "policy": "byte-exact-except-capture-session-semantic-v1",
     }
 
 
@@ -54,7 +152,9 @@ def _expected_artifacts(session_path: Path, value: str) -> dict[str, bytes]:
 
 
 def _write_artifact_projection(
-    run_dir: Path, artifact_dir: Path, expected: dict[str, bytes]
+    run_dir: Path,
+    artifact_dir: Path,
+    expected: dict[str, bytes],
 ) -> None:
     if artifact_dir.exists():
         shutil.rmtree(artifact_dir)
@@ -71,7 +171,11 @@ def _write_artifact_projection(
         target.write_bytes(actual)
 
 
-def _run_ggen(package_dir: Path, ggen_bin: str, sync_args: list[str]) -> dict[str, Any]:
+def _run_ggen(
+    package_dir: Path,
+    ggen_bin: str,
+    sync_args: list[str],
+) -> dict[str, Any]:
     command = [ggen_bin, *sync_args]
     completed = subprocess.run(
         command,
@@ -87,7 +191,10 @@ def _run_ggen(package_dir: Path, ggen_bin: str, sync_args: list[str]) -> dict[st
         "stderr": completed.stderr,
     }
     if completed.returncode != 0:
-        raise GgenCreateError("GGEN_EXECUTION_REFUSED", json.dumps(result, indent=2))
+        raise GgenCreateError(
+            "GGEN_EXECUTION_REFUSED",
+            json.dumps(result, indent=2),
+        )
     return result
 
 
@@ -116,7 +223,10 @@ def _run_behavior(
         "stderr": completed.stderr,
     }
     if completed.returncode != 0:
-        raise GgenCreateError("BEHAVIOR_COMMAND_REFUSED", json.dumps(result, indent=2))
+        raise GgenCreateError(
+            "BEHAVIOR_COMMAND_REFUSED",
+            json.dumps(result, indent=2),
+        )
     if stdout_contains is not None:
         expected = stdout_contains
         for key, replacement in substitutions.items():
@@ -128,6 +238,15 @@ def _run_behavior(
             )
         result["stdout_contains"] = expected
     return result
+
+
+def _write_report(output_root: Path, report: dict[str, Any]) -> Path:
+    report_path = output_root / "parity-report.json"
+    report_path.write_text(
+        json.dumps(report, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    return report_path
 
 
 def verify_parity(
@@ -153,7 +272,8 @@ def verify_parity(
     if output_root.exists():
         if not force:
             raise GgenCreateError(
-                "VERIFY_OUTPUT_EXISTS_REFUSED", f"use --force to replace {output_root}"
+                "VERIFY_OUTPUT_EXISTS_REFUSED",
+                f"use --force to replace {output_root}",
             )
         shutil.rmtree(output_root)
     output_root.mkdir(parents=True)
@@ -162,9 +282,6 @@ def verify_parity(
     build = build_package(session_path, package_build_root)
     base_package = build.package_dir
 
-    # P6 is executed in an isolated source copy. The first repeat must be a
-    # no-op; a changed exemplar must archive the previous package and emit a
-    # new current version without mutating the admitted source.
     revision_source = output_root / "revision-source"
     revision_source.mkdir(parents=True)
     for rel in admitted_files(session_path):
@@ -214,7 +331,10 @@ def verify_parity(
 
     executions: dict[str, Any] = {}
     artifacts: dict[str, str] = {}
-    for label, value in [("reconstruction", seed), ("variation", variation_value)]:
+    for label, value in (
+        ("reconstruction", seed),
+        ("variation", variation_value),
+    ):
         run_dir = output_root / f"{label}-run"
         artifact_dir = output_root / f"{label}-artifact"
         shutil.copytree(base_package, run_dir)
@@ -235,32 +355,40 @@ def verify_parity(
         )
 
     reference_comparison: dict[str, Any] | None = None
+    reference_equal = True
     if reference_dir is not None:
-        reference_comparison = compare_trees(
-            reference_dir.resolve(), Path(artifacts["variation"])
+        reference_comparison = compare_reference_trees(
+            reference_dir.resolve(),
+            Path(artifacts["variation"]),
         )
-        if not reference_comparison["equal"]:
-            raise GgenCreateError(
-                "REFERENCE_PARITY_DRIFT_REFUSED",
-                json.dumps(reference_comparison, indent=2),
-            )
+        reference_equal = bool(reference_comparison["equal"])
 
+    crown_requested = reference_dir is not None and bool(reference_id)
     checkpoints = {
-        "P0_REFERENCE_IDENTITY": "ALIVE"
-        if reference_dir and reference_id
-        else "UNEXECUTED",
+        "P0_REFERENCE_IDENTITY": "ALIVE" if crown_requested else "UNEXECUTED",
         "P1_CAPTURE_PARITY": "ALIVE",
         "P2_TRANSFORMATION_PARITY": "ALIVE",
         "P3_INSPECTION_PARITY": "ALIVE",
         "P4_RECONSTRUCTION_PARITY": "ALIVE",
         "P5_VARIATION_PARITY": "ALIVE",
         "P6_REVISION_PARITY": "ALIVE",
-        "P7_PARITY_CROWN": "ALIVE"
-        if reference_dir and reference_id
-        else "PARTIAL_ALIVE",
+        "P7_PARITY_CROWN": (
+            "ALIVE"
+            if crown_requested and reference_equal
+            else "REFUSED"
+            if crown_requested
+            else "PARTIAL_ALIVE"
+        ),
     }
     report = {
-        "schema": "ggen-create-parity-report/0.1",
+        "schema": "ggen-create-parity-report/0.2",
+        "state": (
+            "ALIVE"
+            if checkpoints["P7_PARITY_CROWN"] == "ALIVE"
+            else "REFUSED"
+            if checkpoints["P7_PARITY_CROWN"] == "REFUSED"
+            else "PARTIAL_ALIVE"
+        ),
         "generator": session["name"],
         "seed": seed,
         "variation": variation_value,
@@ -276,7 +404,18 @@ def verify_parity(
         "revision_check": revision_check,
         "checkpoints": checkpoints,
     }
-    report_path = output_root / "parity-report.json"
-    report_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    report_path = _write_report(output_root, report)
     report["report_path"] = str(report_path)
+
+    if crown_requested and not reference_equal:
+        raise GgenCreateError(
+            "REFERENCE_PARITY_DRIFT_REFUSED",
+            json.dumps(
+                {
+                    **(reference_comparison or {}),
+                    "report_path": str(report_path),
+                },
+                indent=2,
+            ),
+        )
     return report
