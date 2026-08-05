@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ggen-create"
-version = "0.1.0"
-description = "Exemplar-to-ggen-package reverse compiler with hygen-create parity checkpoints"
+version = "0.3.0"
+description = "Automatic and autonomic exemplar-to-ggen factory compiler with MCP and A2A"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -19,6 +19,8 @@ classifiers = [
 
 [project.scripts]
 ggen-create = "ggen_create.cli:main"
+ggen-create-mcp = "ggen_create.mcp:main"
+ggen-create-a2a = "ggen_create.a2a:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
