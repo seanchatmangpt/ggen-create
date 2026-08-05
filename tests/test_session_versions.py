@@ -14,6 +14,9 @@ from ggen_create.model import (
 from ggen_create.session import load_session, start_session
 
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
+
 class SessionVersionTests(unittest.TestCase):
     def test_current_session_version_is_admitted(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -73,6 +76,18 @@ class SessionVersionTests(unittest.TestCase):
         self.assertEqual(
             len(SUPPORTED_SESSION_VERSIONS),
             len(set(SUPPORTED_SESSION_VERSIONS)),
+        )
+
+    def test_capture_schema_version_enum_matches_runtime(self) -> None:
+        schema = json.loads(
+            (REPOSITORY_ROOT / "schemas/capture.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        schema_versions = schema["properties"]["hygen_create_version"]["enum"]
+        self.assertEqual(
+            schema_versions,
+            list(SUPPORTED_SESSION_VERSIONS),
         )
 
 
