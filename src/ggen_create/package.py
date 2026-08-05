@@ -26,6 +26,7 @@ VARIABLES = [
     "title",
 ]
 PACKAGE_RECEIPT_SCHEMA = "ggen-create-package-receipt/0.2"
+PACKAGE_SCHEMA = "ggen-create-package/0.2"
 
 
 def _turtle_literal(value: str) -> str:
@@ -180,9 +181,8 @@ def _planned_files(session_path: Path) -> dict[str, bytes]:
         )
 
     metadata = {
-        "schema": "ggen-create-package/0.1",
+        "schema": PACKAGE_SCHEMA,
         "generator": session["name"],
-        "source_root": str(root.resolve()),
         "parameter": {"id": "name", "seed": seed, "value": seed},
         "gen_parent_dir": session["gen_parent_dir"],
         "files": template_manifest,
@@ -304,6 +304,11 @@ def rewrite_package_parameter(package_dir: Path, value: str) -> dict[str, Any]:
         metadata_path,
         "PACKAGE_METADATA_PARSE_REFUSED",
     )
+    if metadata.get("schema") != PACKAGE_SCHEMA:
+        raise GgenCreateError(
+            "PACKAGE_METADATA_SCHEMA_REFUSED",
+            f"unsupported package schema: {metadata.get('schema')!r}",
+        )
     parameter = metadata.get("parameter")
     if not isinstance(parameter, dict) or not isinstance(parameter.get("seed"), str):
         raise GgenCreateError(
