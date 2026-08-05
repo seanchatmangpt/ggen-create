@@ -4,7 +4,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 import re
 
-from .model import GgenCreateError, Replacement
+from .model import GgenCreateError, Replacement, validate_identifier
 
 
 @dataclass(frozen=True)
@@ -16,7 +16,10 @@ class CaseForm:
 
 def split_words(value: str) -> list[str]:
     if not value:
-        raise GgenCreateError("EMPTY_PARAMETER_REFUSED", "parameter seed must not be empty")
+        raise GgenCreateError(
+            "EMPTY_PARAMETER_REFUSED",
+            "parameter seed must not be empty",
+        )
 
     normalized = re.sub(r"[^A-Za-z0-9]+", " ", value).strip()
     if not normalized:
@@ -38,10 +41,18 @@ def split_words(value: str) -> list[str]:
 
 
 def values_for(value: str) -> OrderedDict[str, str]:
+    value = validate_identifier(
+        value,
+        code="PARAMETER_VALUE_REFUSED",
+        label="parameter value",
+    )
     words = split_words(value)
     joined = "".join(words)
     pascal = "".join(word[:1].upper() + word[1:] for word in words)
-    camel = words[0] + "".join(word[:1].upper() + word[1:] for word in words[1:])
+    camel = words[0] + "".join(
+        word[:1].upper() + word[1:]
+        for word in words[1:]
+    )
     capitalized = value[:1].upper() + value[1:]
     return OrderedDict(
         [
@@ -54,7 +65,10 @@ def values_for(value: str) -> OrderedDict[str, str]:
             ("snake", "_".join(words)),
             ("upper_snake", "_".join(words).upper()),
             ("kebab", "-".join(words)),
-            ("title", " ".join(word[:1].upper() + word[1:] for word in words)),
+            (
+                "title",
+                " ".join(word[:1].upper() + word[1:] for word in words),
+            ),
         ]
     )
 
@@ -128,7 +142,10 @@ def _raw(text: str) -> str:
     return "{% raw %}" + text + "{% endraw %}"
 
 
-def parameterize_body(text: str, seed: str) -> tuple[str, list[Replacement]]:
+def parameterize_body(
+    text: str,
+    seed: str,
+) -> tuple[str, list[Replacement]]:
     replacements = replacements_for(text, seed)
     if not replacements:
         return _raw(text), []
@@ -143,7 +160,10 @@ def parameterize_body(text: str, seed: str) -> tuple[str, list[Replacement]]:
     return "".join(out), replacements
 
 
-def parameterize_path(text: str, seed: str) -> tuple[str, list[Replacement]]:
+def parameterize_path(
+    text: str,
+    seed: str,
+) -> tuple[str, list[Replacement]]:
     replacements = replacements_for(text, seed)
     if "{{" in text or "{%" in text:
         raise GgenCreateError(
@@ -160,7 +180,11 @@ def parameterize_path(text: str, seed: str) -> tuple[str, list[Replacement]]:
     return "".join(out), replacements
 
 
-def render_concrete(text: str, seed: str, value: str) -> tuple[str, list[Replacement]]:
+def render_concrete(
+    text: str,
+    seed: str,
+    value: str,
+) -> tuple[str, list[Replacement]]:
     replacements = replacements_for(text, seed)
     replacement_values = values_for(value)
     out: list[str] = []
