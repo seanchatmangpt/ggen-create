@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ggen-create-native-${{ github.workflow }}-${{ github.ref }}
+  group: ggen-create-native-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -36,19 +36,9 @@ jobs:
           import json
           from pathlib import Path
           from rdflib import Graph
-
-          for path in (
-              Path("schemas/capture.schema.json"),
-              Path("schemas/a2a-agent-card.schema.json"),
-              Path("schemas/native-receipt.schema.json"),
-          ):
+          for path in (Path("schemas/capture.schema.json"), Path("schemas/a2a-agent-card.schema.json"), Path("schemas/native-receipt.schema.json")):
               json.loads(path.read_text())
-          for path in (
-              Path("ontology/ggen-create.ttl"),
-              Path("ontology/native-runtime.ttl"),
-              Path("shapes/ggen-create.shacl.ttl"),
-              Path("shapes/native-runtime.shacl.ttl"),
-          ):
+          for path in (Path("ontology/ggen-create.ttl"), Path("ontology/native-runtime.ttl"), Path("shapes/ggen-create.shacl.ttl"), Path("shapes/native-runtime.shacl.ttl")):
               graph = Graph(); graph.parse(path, format="turtle"); assert len(graph) > 0, path
           PY
       - name: Exercise automatic, autonomic, MCP, A2A, and self-play
@@ -73,13 +63,12 @@ jobs:
           from ggen_create.mcp import McpServer
           root = Path.cwd()
           mcp = McpServer(root)
-          init = mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "ci", "version": "1"}}})
+          init = mcp.handle({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}})
           assert init["result"]["protocolVersion"] == "2025-11-25"
-          tools = mcp.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
-          assert len(tools["result"]["tools"]) >= 9
+          assert len(mcp.handle({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}})["result"]["tools"]) >= 9
           a2a = A2AService(root, base_url="http://127.0.0.1:8765")
-          card = a2a.agent_card(); assert card["supportedInterfaces"][0]["protocolVersion"] == "1.0"
-          response = a2a.handle_rpc({"jsonrpc": "2.0", "id": 3, "method": "SendMessage", "params": {"message": {"messageId": "ci", "role": "ROLE_USER", "parts": [{"data": {"operation": "automatic.plan", "arguments": {"output_root": "_ggen"}}}]}}})
+          assert a2a.agent_card()["supportedInterfaces"][0]["protocolVersion"] == "1.0"
+          response = a2a.handle_rpc({"jsonrpc":"2.0","id":3,"method":"SendMessage","params":{"message":{"messageId":"ci","role":"ROLE_USER","parts":[{"data":{"operation":"automatic.plan","arguments":{"output_root":"_ggen"}}}]}}})
           assert response["result"]["task"]["status"]["state"] == "TASK_STATE_COMPLETED"
           PY
       - name: Upload native evidence
