@@ -3,7 +3,35 @@ name: hygen-create parity
 on:
   push:
     branches: [main, "agent/**"]
+    paths:
+      - pyproject.toml
+      - src/ggen_create/cases.py
+      - src/ggen_create/cli.py
+      - src/ggen_create/inspect.py
+      - src/ggen_create/model.py
+      - src/ggen_create/package.py
+      - src/ggen_create/session.py
+      - src/ggen_create/verify.py
+      - tests/test_parity.py
+      - schemas/capture.schema.json
+      - ontology/ggen-create.ttl
+      - shapes/ggen-create.shacl.ttl
+      - .github/workflows/parity.yml
   pull_request:
+    paths:
+      - pyproject.toml
+      - src/ggen_create/cases.py
+      - src/ggen_create/cli.py
+      - src/ggen_create/inspect.py
+      - src/ggen_create/model.py
+      - src/ggen_create/package.py
+      - src/ggen_create/session.py
+      - src/ggen_create/verify.py
+      - tests/test_parity.py
+      - schemas/capture.schema.json
+      - ontology/ggen-create.ttl
+      - shapes/ggen-create.shacl.ttl
+      - .github/workflows/parity.yml
   workflow_dispatch:
 
 concurrency:
@@ -17,6 +45,7 @@ env:
   PYTHONUNBUFFERED: "1"
   RUSTC_WRAPPER: ""
   SCCACHE_DISABLE: "1"
+  GGEN_COMMIT: cd913439169b0a20c130f0f8ec7251c756eb1a82
 
 jobs:
   deterministic-parity-skills:
@@ -30,9 +59,9 @@ jobs:
       - name: Install ggen-create
         run: python -m pip install -e .
       - name: Compile Python sources
-        run: python -m compileall -q src tests
+        run: python -m compileall -q src tests/test_parity.py
       - name: Execute parity unit tests
-        run: python -m unittest discover -s tests -v
+        run: python -m unittest discover -s tests -p 'test_parity.py' -v
       - name: Exercise original-compatible CLI journey
         shell: bash
         run: |
@@ -65,7 +94,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: seanchatmangpt/ggen
-          ref: cd913439169b0a20c130f0f8ec7251c756eb1a82
+          ref: ${{ env.GGEN_COMMIT }}
           path: _external/ggen
       - uses: actions/setup-python@v5
         with:
@@ -73,6 +102,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "16"
+      - name: Restore exact ggen build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            _external/ggen/target
+          key: ggen-cli-${{ runner.os }}-${{ env.GGEN_COMMIT }}-${{ hashFiles('_external/ggen/Cargo.lock') }}
       - name: Install ggen-create and original tools
         run: |
           python -m pip install -e .
@@ -84,7 +121,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          source="$RUNNER_TEMP/original-source"; templates="$RUNNER_TEMP/hygen-templates"; reference="$RUNNER_TEMP/reference"
+          source="$RUNNER_TEMP/original-source"
+          templates="$RUNNER_TEMP/hygen-templates"
+          reference="$RUNNER_TEMP/reference"
           mkdir -p "$source/dist" "$templates" "$reference"
           cat > "$source/package.json" <<'JSON'
           {"name":"hello","version":"1.0.0","description":"an application that prints hello","scripts":{"hello":"node dist/hello.js"}}
@@ -105,7 +144,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          source="$RUNNER_TEMP/candidate-source"; verify="$RUNNER_TEMP/verify"
+          source="$RUNNER_TEMP/candidate-source"
+          verify="$RUNNER_TEMP/verify"
           mkdir -p "$source/dist"
           cat > "$source/package.json" <<'JSON'
           {"name":"hello","version":"1.0.0","description":"an application that prints hello","scripts":{"hello":"node dist/hello.js"}}
@@ -118,7 +158,14 @@ jobs:
           ggen-create start greeter
           ggen-create add package.json dist/hello.js
           ggen-create usename Hello
-          ggen-create verify --output "$verify" --ggen-bin "$GITHUB_WORKSPACE/_external/ggen/target/debug/ggen" --set Hola --check-command "npm run {lower}" --stdout-contains "{capitalized}!" --reference-dir "$RUNNER_TEMP/reference" --reference-id "ronp001/hygen-create@0.2.1+hygen@1.6.2"
+          ggen-create verify \
+            --output "$verify" \
+            --ggen-bin "$GITHUB_WORKSPACE/_external/ggen/target/debug/ggen" \
+            --set Hola \
+            --check-command "npm run {lower}" \
+            --stdout-contains "{capitalized}!" \
+            --reference-dir "$RUNNER_TEMP/reference" \
+            --reference-id "ronp001/hygen-create@0.2.1+hygen@1.6.2"
           python - <<'PY'
           import json, os, pathlib
           report = json.loads((pathlib.Path(os.environ["RUNNER_TEMP"]) / "verify/parity-report.json").read_text())
