@@ -77,7 +77,10 @@ jobs:
           PY
           tar -czf alive-evidence/ggen-create-pr-2-source.tgz -C alive-evidence source
           rm -rf alive-evidence/source
-          sha256sum alive-evidence/* > alive-evidence/SHA256SUMS
+          (
+            cd alive-evidence
+            sha256sum ggen-create-pr-2-alive.json ggen-create-pr-2-source.tgz > SHA256SUMS
+          )
       - uses: actions/upload-artifact@v4
         with:
           name: ggen-create-pr-2-alive-evidence
