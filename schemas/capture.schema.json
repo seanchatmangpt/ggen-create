@@ -1,92 +1,47 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ggen.io/schemas/ggen-create/capture.schema.json",
-  "title": "ggen-create capture",
+  "title": "ggen-create parity capture",
+  "description": "Original hygen-create-compatible capture state. The session file location is the capture root.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "subject", "policy", "include", "parameter_hypotheses"],
+  "required": [
+    "about",
+    "hygen_create_version",
+    "name",
+    "files_and_dirs",
+    "templatize_using_name",
+    "gen_parent_dir"
+  ],
   "properties": {
-    "version": {
+    "about": {
       "type": "string",
-      "const": "0.1"
+      "const": "This is a hygen-create definitions file. The hygen-create utility creates generators that can be executed using hygen."
     },
-    "subject": {
+    "hygen_create_version": {
+      "type": "string",
+      "const": "0.2.0"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "files_and_dirs": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["name", "root"],
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "root": {
-          "type": "string",
-          "minLength": 1
-        },
-        "tree_hash": {
-          "type": ["string", "null"],
-          "pattern": "^blake3:[0-9a-f]+$"
-        }
-      }
-    },
-    "policy": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["symlinks", "binary_files", "outside_root"],
-      "properties": {
-        "symlinks": {
-          "enum": ["refuse", "record-no-follow"]
-        },
-        "binary_files": {
-          "enum": ["refuse", "opaque-copy", "exclude"]
-        },
-        "outside_root": {
-          "const": "refuse"
-        }
-      }
-    },
-    "include": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["path"],
-        "properties": {
-          "path": {
-            "type": "string",
-            "minLength": 1
-          },
-          "content_hash": {
-            "type": ["string", "null"],
-            "pattern": "^blake3:[0-9a-f]+$"
-          },
-          "standing": {
-            "enum": ["candidate", "admitted", "refused", "unsupported"]
-          }
-        }
+      "minProperties": 1,
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "not": {"pattern": "(^|/)\\.\\.(/|$)"}
       },
-      "minItems": 1
+      "additionalProperties": {"type": "boolean"}
     },
-    "parameter_hypotheses": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["id", "seed", "standing"],
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9_]*$"
-          },
-          "seed": {
-            "type": "string",
-            "minLength": 1
-          },
-          "standing": {
-            "enum": ["candidate", "admitted", "refused"]
-          }
-        }
-      }
+    "templatize_using_name": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "gen_parent_dir": {
+      "type": "boolean"
     }
   }
 }

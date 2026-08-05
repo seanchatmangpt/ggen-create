@@ -2,7 +2,9 @@
 
 ## Phase 0 — Authority bootstrap
 
-Deliver:
+**State: ALIVE on the architecture branch.**
+
+Delivered:
 
 - PRD;
 - ARD;
@@ -12,15 +14,11 @@ Deliver:
 - capture schema;
 - greeter fixture.
 
-Exit:
-
-```text
-ARCHITECTURE_ADMITTED
-```
-
 ## Phase 1 — Deterministic parity core
 
-Implement without agents:
+**State: IMPLEMENTED; external exact-head workflow remains the crown gate.**
+
+Implemented without agents:
 
 1. `capture-session`
 2. `capture-paths`
@@ -31,13 +29,26 @@ Implement without agents:
 7. `reconstruct-exemplar`
 8. `verify-parity-variation`
 
-Required real execution:
+Local evidence:
 
 ```text
-Hello reconstructs
-Hola generates
+Python compile: PASS
+unit and bounded integration tests: 8/8 PASS
+original-compatible CLI journey: PASS
+package no-op replay: PASS
+changed revision archive: PASS
+bounded fake-ggen verifier: P7 ALIVE
+```
+
+External required execution:
+
+```text
+real ggen reconstructs Hello
+real ggen generates Hola
 Hola executes
-second replay matches
+original hygen-create independently generates Hola
+artifact projections match byte-for-byte
+workflow publishes parity-report.json
 ```
 
 Exit:
@@ -55,7 +66,7 @@ Add:
 - path/content consistency;
 - declared constants;
 - transform ambiguity;
-- binary and opaque policies;
+- explicit binary/opaque-copy policy;
 - typed negative fixtures.
 
 Exit:
@@ -100,7 +111,7 @@ BOUNDED_VARIATION_ALIVE
 
 ## Phase 5 — Minimal agent topology
 
-Introduce:
+Introduce only after Phase 1's external crown is green:
 
 - receiver;
 - correspondence analyst;

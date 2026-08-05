@@ -1,0 +1,153 @@
+name: hygen-create parity
+
+on:
+  push:
+    branches: [main, "agent/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+  RUSTC_WRAPPER: ""
+  SCCACHE_DISABLE: "1"
+
+jobs:
+  deterministic-parity-skills:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ggen-create
+        run: python -m pip install -e .
+      - name: Compile Python sources
+        run: python -m compileall -q src tests
+      - name: Execute parity unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Exercise original-compatible CLI journey
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/greeter-source"
+          mkdir -p "$root/dist"
+          cat > "$root/package.json" <<'JSON'
+          {
+            "name": "hello",
+            "version": "1.0.0",
+            "scripts": {"hello": "node dist/hello.js"}
+          }
+          JSON
+          cat > "$root/dist/hello.js" <<'JS'
+          // This is hello.js
+          console.log("Hello!")
+          JS
+          cd "$root"
+          ggen-create start greeter
+          ggen-create add package.json dist/hello.js
+          ggen-create usename Hello
+          ggen-create status --verbose
+          ggen-create generate --output "$RUNNER_TEMP/packages"
+          test -f "$RUNNER_TEMP/packages/greeter/ggen.toml"
+          test -f "$RUNNER_TEMP/packages/greeter/receipt.json"
+
+  real-ggen-and-original-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout ggen-create
+        uses: actions/checkout@v4
+      - name: Checkout ggen manufacturer
+        uses: actions/checkout@v4
+        with:
+          repository: seanchatmangpt/ggen
+          path: _external/ggen
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "16"
+      - name: Install ggen-create and original tools
+        run: |
+          python -m pip install -e .
+          npm install --global hygen@1.6.2 hygen-create@0.2.1
+      - name: Build exact ggen CLI
+        working-directory: _external/ggen
+        run: cargo build -p ggen-cli-lib --bin ggen --locked
+      - name: Manufacture original hygen-create reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          source="$RUNNER_TEMP/original-source"
+          templates="$RUNNER_TEMP/hygen-templates"
+          reference="$RUNNER_TEMP/reference"
+          mkdir -p "$source/dist" "$templates" "$reference"
+          cat > "$source/package.json" <<'JSON'
+          {
+            "name": "hello",
+            "version": "1.0.0",
+            "description": "an application that prints hello",
+            "scripts": {"hello": "node dist/hello.js"}
+          }
+          JSON
+          cat > "$source/dist/hello.js" <<'JS'
+          // This is hello.js
+          console.log("Hello!")
+          JS
+          cd "$source"
+          hygen-create start greeter
+          hygen-create add package.json dist/hello.js
+          hygen-create usename Hello
+          HYGEN_CREATE_TMPLS="$templates" hygen-create generate
+          cd "$reference"
+          HYGEN_TMPLS="$templates" hygen greeter new --name Hola
+          npm run hola
+      - name: Manufacture ggen package and prove both parity rails
+        shell: bash
+        run: |
+          set -euo pipefail
+          source="$RUNNER_TEMP/candidate-source"
+          verify="$RUNNER_TEMP/verify"
+          mkdir -p "$source/dist"
+          cat > "$source/package.json" <<'JSON'
+          {
+            "name": "hello",
+            "version": "1.0.0",
+            "description": "an application that prints hello",
+            "scripts": {"hello": "node dist/hello.js"}
+          }
+          JSON
+          cat > "$source/dist/hello.js" <<'JS'
+          // This is hello.js
+          console.log("Hello!")
+          JS
+          cd "$source"
+          ggen-create start greeter
+          ggen-create add package.json dist/hello.js
+          ggen-create usename Hello
+          ggen-create verify \
+            --output "$verify" \
+            --ggen-bin "$GITHUB_WORKSPACE/_external/ggen/target/debug/ggen" \
+            --set Hola \
+            --check-command "npm run {lower}" \
+            --stdout-contains "{capitalized}!" \
+            --reference-dir "$RUNNER_TEMP/reference" \
+            --reference-id "ronp001/hygen-create@0.2.1+hygen@1.6.2"
+          python - <<'PY'
+          import json, os, pathlib
+          report = json.loads((pathlib.Path(os.environ["RUNNER_TEMP"]) / "verify/parity-report.json").read_text())
+          assert report["checkpoints"]["P7_PARITY_CROWN"] == "ALIVE", report
+          assert report["reference_comparison"]["equal"] is True, report
+          PY
+      - name: Upload parity receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ggen-create-parity-receipt
+          path: ${{ runner.temp }}/verify/parity-report.json
+          if-no-files-found: warn
