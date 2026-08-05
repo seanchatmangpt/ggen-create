@@ -16,7 +16,17 @@ from .mcp_runtime import (
     TOOLS,
     McpServer as _McpServer,
     error,
+    tool_result,
 )
+from .skills import Broker, SkillRegistry
+
+
+_GLOBAL_TO_SKILL = {
+    "ggen_create_agent_route": "agents.route",
+    "ggen_create_receipt_verify": "receipt.verify",
+    "ggen_create_receipt_chain_verify": "receipt.chain.verify",
+    "ggen_create_doctor": "doctor.inspect",
+}
 
 
 class McpServer(_McpServer):
@@ -26,6 +36,32 @@ class McpServer(_McpServer):
         normalized = dict(arguments)
         if name == "ggen_create_package_verify" and normalized.get("package") is None:
             normalized.pop("package", None)
+
+        skill_name = _GLOBAL_TO_SKILL.get(name)
+        if skill_name is not None:
+            try:
+                registry = SkillRegistry()
+                value = Broker(self.root).execute(
+                    registry.plan(skill_name, normalized),
+                    session_path=None,
+                )
+                return tool_result(value)
+            except Exception as exc:
+                from .model import GgenCreateError
+
+                if isinstance(exc, GgenCreateError):
+                    return tool_result(
+                        {"code": exc.code, "detail": exc.detail},
+                        is_error=True,
+                    )
+                return tool_result(
+                    {
+                        "code": "TOOL_INTERNAL_ERROR",
+                        "type": type(exc).__name__,
+                        "detail": str(exc),
+                    },
+                    is_error=True,
+                )
         return super().execute(name, normalized)
 
 
