@@ -48,6 +48,7 @@ jobs:
               Path("schemas/a2a-agent-card.schema.json"),
               Path("schemas/native-receipt.schema.json"),
               Path("schemas/native-task.schema.json"),
+              Path("schemas/package.schema.json"),
               Path("schemas/package-receipt.schema.json"),
           )
           for path in schema_paths:
@@ -187,7 +188,7 @@ jobs:
           })
           assert response["result"]["task"]["status"]["state"] == "TASK_STATE_COMPLETED"
           PY
-      - name: Validate emitted receipts and tasks
+      - name: Validate emitted packages, receipts, and tasks
         shell: bash
         run: |
           set -euo pipefail
@@ -203,6 +204,9 @@ jobs:
           native_receipt_schema = json.loads(
               (repository / "schemas/native-receipt.schema.json").read_text()
           )
+          package_schema = json.loads(
+              (repository / "schemas/package.schema.json").read_text()
+          )
           package_receipt_schema = json.loads(
               (repository / "schemas/package-receipt.schema.json").read_text()
           )
@@ -211,6 +215,10 @@ jobs:
           )
           native_receipt_validator = Draft202012Validator(
               native_receipt_schema,
+              format_checker=FormatChecker(),
+          )
+          package_validator = Draft202012Validator(
+              package_schema,
               format_checker=FormatChecker(),
           )
           package_receipt_validator = Draft202012Validator(
@@ -226,6 +234,11 @@ jobs:
           assert receipts
           for path in receipts:
               native_receipt_validator.validate(json.loads(path.read_text()))
+
+          package_documents = list(Path.cwd().glob("**/ggen-create-package.json"))
+          assert package_documents
+          for path in package_documents:
+              package_validator.validate(json.loads(path.read_text()))
 
           package_receipts = [
               path
