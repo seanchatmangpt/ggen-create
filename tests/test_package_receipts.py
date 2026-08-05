@@ -23,6 +23,14 @@ class PackageReceiptTests(unittest.TestCase):
         package = build_package(session, root / "packages").package_dir
         return session, package
 
+    @staticmethod
+    def manifest(root: Path) -> dict[str, bytes]:
+        return {
+            path.relative_to(root).as_posix(): path.read_bytes()
+            for path in sorted(root.rglob("*"))
+            if path.is_file()
+        }
+
     def test_build_receipt_is_content_addressed(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             _, package = self.fixture(Path(raw))
@@ -35,6 +43,32 @@ class PackageReceiptTests(unittest.TestCase):
             self.assertEqual(
                 integrity["claimed_receipt_digest"],
                 integrity["computed_receipt_digest"],
+            )
+            metadata = json.loads(
+                (package / "ggen-create-package.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(metadata["schema"], "ggen-create-package/0.2")
+            self.assertNotIn("source_root", metadata)
+
+    def test_identical_exemplars_are_byte_identical_across_roots(self) -> None:
+        with (
+            tempfile.TemporaryDirectory() as left_raw,
+            tempfile.TemporaryDirectory() as right_raw,
+        ):
+            _, left = self.fixture(Path(left_raw))
+            _, right = self.fixture(Path(right_raw))
+            self.assertEqual(self.manifest(left), self.manifest(right))
+            left_receipt = json.loads(
+                (left / "receipt.json").read_text(encoding="utf-8")
+            )
+            right_receipt = json.loads(
+                (right / "receipt.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                left_receipt["receipt_digest"],
+                right_receipt["receipt_digest"],
             )
 
     def test_parameter_rewrite_emits_successor_receipt(self) -> None:
@@ -67,6 +101,28 @@ class PackageReceiptTests(unittest.TestCase):
             self.assertEqual(metadata["parameter"]["value"], "Hola")
             integrity = verify_package(package)
             self.assertTrue(integrity["valid"], integrity)
+
+    def test_execution_integrity_allows_only_extra_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            _, package = self.fixture(Path(raw))
+            (package / "generated.txt").write_text(
+                "artifact",
+                encoding="utf-8",
+            )
+            strict = verify_package(package)
+            execution = verify_package(package, allow_extra=True)
+            self.assertFalse(strict["valid"])
+            self.assertEqual(strict["extra"], ["generated.txt"])
+            self.assertTrue(execution["valid"], execution)
+            self.assertEqual(execution["extra"], ["generated.txt"])
+
+            (package / "ontology.ttl").write_text(
+                "tampered",
+                encoding="utf-8",
+            )
+            corrupted = verify_package(package, allow_extra=True)
+            self.assertFalse(corrupted["valid"])
+            self.assertIn("ontology.ttl", corrupted["different"])
 
     def test_tampering_after_rewrite_is_detected(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
