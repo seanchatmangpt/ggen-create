@@ -86,6 +86,7 @@ AGENTS = (
             "package.verify",
             "receipt.verify",
             "receipt.chain.verify",
+            "doctor.inspect",
         ),
         handoff=("adversarial-verifier",),
     ),
@@ -102,6 +103,7 @@ AGENTS = (
             "package.verify",
             "receipt.verify",
             "receipt.chain.verify",
+            "doctor.inspect",
             "skills.list",
             "agents.list",
         ),
@@ -171,6 +173,11 @@ class AgentRuntime:
                 "agents.list",
             ),
             (
+                ("doctor", "standing", "health", "readiness"),
+                "certifier",
+                "doctor.inspect",
+            ),
+            (
                 ("receipt chain", "ledger", "chain"),
                 "certifier",
                 "receipt.chain.verify",
@@ -220,7 +227,7 @@ class AgentRuntime:
         skill_name: str,
         arguments: dict[str, Any],
         *,
-        session_path: Path,
+        session_path: Path | None = None,
         confirm: bool = False,
     ) -> dict[str, Any]:
         planned = self.plan(agent_name, skill_name, arguments)
