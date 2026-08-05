@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from contextlib import redirect_stdout
+import io
+import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
 
 from ggen_create.a2a import A2AService
+from ggen_create.cli import run as run_cli
 from ggen_create.mcp import MCP_PROTOCOL_VERSION, McpServer
 from ggen_create.model import GgenCreateError
 from ggen_create.skills import Broker, SkillRegistry
@@ -181,6 +186,50 @@ class GlobalProtocolTests(unittest.TestCase):
                 skills["result"]["task"]["status"]["state"],
                 "TASK_STATE_COMPLETED",
             )
+
+    def test_cli_global_commands_work_without_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            previous = Path.cwd()
+            os.chdir(raw)
+            try:
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertEqual(run_cli(["--json", "doctor"]), 0)
+                doctor = json.loads(output.getvalue())
+                self.assertEqual(doctor["state"], "PARTIAL_ALIVE")
+
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertEqual(
+                        run_cli(
+                            [
+                                "--json",
+                                "agents",
+                                "route",
+                                "runtime health",
+                            ]
+                        ),
+                        0,
+                    )
+                route = json.loads(output.getvalue())
+                self.assertEqual(route["skill"], "doctor.inspect")
+
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertEqual(
+                        run_cli(["--json", "receipt", "chain"]),
+                        0,
+                    )
+                ledger = json.loads(output.getvalue())
+                self.assertTrue(ledger["result"]["valid"])
+
+                with self.assertRaisesRegex(
+                    GgenCreateError,
+                    "NO_SESSION_REFUSED",
+                ):
+                    run_cli(["--json", "status"])
+            finally:
+                os.chdir(previous)
 
 
 if __name__ == "__main__":
