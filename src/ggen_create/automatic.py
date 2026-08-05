@@ -5,6 +5,7 @@ from pathlib import Path
 import time
 from typing import Any
 
+from .cases import values_for
 from .inspect import inspect_session
 from .integrity import verify_package
 from .model import GgenCreateError
@@ -57,6 +58,21 @@ def load_automatic_state(session_path: Path) -> dict[str, Any] | None:
     return value
 
 
+def _validate_variation(
+    variation_value: str | None,
+    *,
+    verify: bool,
+) -> None:
+    if not verify:
+        return
+    if not variation_value:
+        raise GgenCreateError(
+            "VARIATION_REQUIRED_REFUSED",
+            "automatic verification requires a non-empty variation value",
+        )
+    values_for(variation_value)
+
+
 def automatic_plan(
     session_path: Path,
     *,
@@ -65,6 +81,7 @@ def automatic_plan(
     verify: bool = False,
 ) -> dict[str, Any]:
     session_path = session_path.resolve()
+    _validate_variation(variation_value, verify=verify)
     report = inspect_session(session_path)
     if report["replacement_count"] == 0:
         raise GgenCreateError(
@@ -81,11 +98,7 @@ def automatic_plan(
         }
     ]
     if verify:
-        if not variation_value:
-            raise GgenCreateError(
-                "VARIATION_REQUIRED_REFUSED",
-                "automatic verification requires a non-empty variation value",
-            )
+        assert variation_value is not None
         actions.append(
             {
                 "action": "parity.verify",
@@ -227,6 +240,7 @@ def watch_automatic(
 ) -> dict[str, Any]:
     session_path = session_path.resolve()
     output_root = output_root.resolve()
+    _validate_variation(variation_value, verify=verify)
     if cycles < 1 or cycles > 100:
         raise GgenCreateError(
             "WATCH_CYCLES_REFUSED",
