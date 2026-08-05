@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import json
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +63,7 @@ SKILLS = (
         input_class="GgenPackage",
         output_class="PackageIntegrityReport",
         verifier="sha256-package-manifest",
+        refusals=("PACKAGE_INTEGRITY_REFUSED",),
     ),
     SkillSpec(
         name="automatic.create",
@@ -131,6 +133,7 @@ SKILLS = (
         output_class="ReceiptVerification",
         requires_session=False,
         verifier="sha256-recompute",
+        refusals=("RECEIPT_DIGEST_REFUSED",),
     ),
     SkillSpec(
         name="receipt.chain.verify",
@@ -140,6 +143,7 @@ SKILLS = (
         output_class="ReceiptChainVerification",
         requires_session=False,
         verifier="parent-digest-chain",
+        refusals=("RECEIPT_CHAIN_REFUSED",),
     ),
     SkillSpec(
         name="doctor.inspect",
@@ -232,6 +236,19 @@ class Broker:
                 )
             return self.subject_root
         return require_under(self.subject_root, session_path)
+
+    @staticmethod
+    def _admit_verification(
+        report: Any,
+        *,
+        code: str,
+    ) -> dict[str, Any]:
+        if not isinstance(report, dict) or report.get("valid") is not True:
+            raise GgenCreateError(
+                code,
+                json.dumps(report, indent=2, sort_keys=True, default=str),
+            )
+        return {**report, "state": "ALIVE"}
 
     def execute(
         self,
@@ -380,12 +397,10 @@ class Broker:
                 output,
                 force=bool(args.get("force")),
             )
-            integrity = verify_package(value.package_dir)
-            if not integrity["valid"]:
-                raise GgenCreateError(
-                    "PACKAGE_INTEGRITY_REFUSED",
-                    str(integrity),
-                )
+            integrity = self._admit_verification(
+                verify_package(value.package_dir),
+                code="PACKAGE_INTEGRITY_REFUSED",
+            )
             return {
                 "package": str(value.package_dir),
                 "changed": value.changed,
@@ -405,7 +420,10 @@ class Broker:
             generator = load_session(session)["name"]
             raw_package = args.get("package")
             package = raw_package if raw_package else output / generator
-            return verify_package(self._path(package))
+            return self._admit_verification(
+                verify_package(self._path(package)),
+                code="PACKAGE_INTEGRITY_REFUSED",
+            )
         if name == "automatic.create":
             from .automatic import run_automatic
 
@@ -495,9 +513,15 @@ class Broker:
                         "no latest receipt",
                     )
                 raw = latest["path"]
-            return ReceiptStore.verify(self._path(raw))
+            return self._admit_verification(
+                ReceiptStore.verify(self._path(raw)),
+                code="RECEIPT_DIGEST_REFUSED",
+            )
         if name == "receipt.chain.verify":
-            return self.receipts.verify_chain()
+            return self._admit_verification(
+                self.receipts.verify_chain(),
+                code="RECEIPT_CHAIN_REFUSED",
+            )
         if name == "doctor.inspect":
             from .doctor import doctor_report
 
