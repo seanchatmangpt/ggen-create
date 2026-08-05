@@ -51,6 +51,7 @@ def _invalid(
     extra: list[str] | None = None,
     different: list[str] | None = None,
     symlinks: list[str] | None = None,
+    allow_extra: bool = False,
 ) -> dict[str, Any]:
     value: dict[str, Any] = {
         "valid": False,
@@ -60,6 +61,7 @@ def _invalid(
         "extra": extra or [],
         "different": different or [],
         "symlinks": symlinks or [],
+        "allow_extra": allow_extra,
         "receipt_valid": False,
     }
     if detail is not None:
@@ -67,11 +69,21 @@ def _invalid(
     return value
 
 
-def verify_package(package_dir: Path) -> dict[str, Any]:
+def verify_package(
+    package_dir: Path,
+    *,
+    allow_extra: bool = False,
+) -> dict[str, Any]:
+    """Verify factory bytes; optionally permit separately verified outputs."""
+
     package_dir = package_dir.resolve()
     receipt_path = package_dir / "receipt.json"
     if not package_dir.is_dir():
-        return _invalid(package_dir, "PACKAGE_MISSING")
+        return _invalid(
+            package_dir,
+            "PACKAGE_MISSING",
+            allow_extra=allow_extra,
+        )
     try:
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -79,18 +91,21 @@ def verify_package(package_dir: Path) -> dict[str, Any]:
             package_dir,
             "PACKAGE_RECEIPT_MISSING",
             missing=["receipt.json"],
+            allow_extra=allow_extra,
         )
     except (OSError, json.JSONDecodeError) as exc:
         return _invalid(
             package_dir,
             "PACKAGE_RECEIPT_INVALID",
             detail=str(exc),
+            allow_extra=allow_extra,
         )
     if not isinstance(receipt, dict):
         return _invalid(
             package_dir,
             "PACKAGE_RECEIPT_SCHEMA",
             detail="receipt must be an object",
+            allow_extra=allow_extra,
         )
 
     schema = receipt.get("schema")
@@ -99,12 +114,14 @@ def verify_package(package_dir: Path) -> dict[str, Any]:
             package_dir,
             "PACKAGE_RECEIPT_SCHEMA",
             detail=f"unsupported schema: {schema!r}",
+            allow_extra=allow_extra,
         )
     if receipt.get("algorithm") != "sha256":
         return _invalid(
             package_dir,
             "PACKAGE_RECEIPT_SCHEMA",
             detail="algorithm must be sha256",
+            allow_extra=allow_extra,
         )
 
     expected = receipt.get("files")
@@ -113,6 +130,7 @@ def verify_package(package_dir: Path) -> dict[str, Any]:
             package_dir,
             "PACKAGE_RECEIPT_SCHEMA",
             detail="files must be a non-empty object",
+            allow_extra=allow_extra,
         )
     unsafe_expected = sorted(
         key
@@ -135,6 +153,7 @@ def verify_package(package_dir: Path) -> dict[str, Any]:
                 "unsafe_paths": unsafe_expected,
                 "invalid_hashes": invalid_hashes,
             },
+            allow_extra=allow_extra,
         )
 
     receipt_valid = True
@@ -176,8 +195,8 @@ def verify_package(package_dir: Path) -> dict[str, Any]:
         receipt_valid
         and not symlinks
         and not missing
-        and not extra
         and not different
+        and (allow_extra or not extra)
     )
     return {
         "valid": valid,
@@ -188,6 +207,7 @@ def verify_package(package_dir: Path) -> dict[str, Any]:
         "extra": extra,
         "different": different,
         "symlinks": symlinks,
+        "allow_extra": allow_extra,
         "generator": receipt.get("generator"),
         "operation": receipt.get("operation"),
         "parameter_value": receipt.get("parameter_value"),
@@ -198,8 +218,12 @@ def verify_package(package_dir: Path) -> dict[str, Any]:
     }
 
 
-def require_valid_package(package_dir: Path) -> dict[str, Any]:
-    result = verify_package(package_dir)
+def require_valid_package(
+    package_dir: Path,
+    *,
+    allow_extra: bool = False,
+) -> dict[str, Any]:
+    result = verify_package(package_dir, allow_extra=allow_extra)
     if not result["valid"]:
         raise GgenCreateError(
             "PACKAGE_INTEGRITY_REFUSED",
