@@ -2,16 +2,49 @@
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 
-gc:AutomaticPlan a gc:CreateTimeObject ; dcterms:description "A reversible plan for package manufacture." .
-gc:AutomaticState a gc:CreateTimeObject ; dcterms:description "Fingerprint and consequence state for automatic execution." .
-gc:AutonomicCycle a gc:CreateTimeObject ; dcterms:description "One bounded monitor-analyze-plan-execute-knowledge cycle." .
-gc:AutonomicKnowledge a gc:CreateTimeObject ; dcterms:description "Bounded retained controller observations and decisions." .
-gc:Intent a gc:CreateTimeObject ; dcterms:description "Content-addressed proposed skill execution." .
-gc:Broker a gc:AuthorityBoundary ; dcterms:description "Exclusive filesystem and process actuation boundary." .
-gc:McpServer a gc:ProtocolEndpoint ; gc:protocolVersion "2025-11-25" ; gc:transport "stdio" ; gc:mayActuate false .
-gc:A2AServer a gc:ProtocolEndpoint ; gc:protocolVersion "1.0" ; gc:transport "JSONRPC-loopback-http" ; gc:mayActuate false .
-gc:DurableTask a gc:CreateTimeObject ; dcterms:description "Receiver-minted bounded task state." .
-gc:NativeReceipt a gc:Receipt ; gc:hashAlgorithm "sha256" .
+# Runtime objects
+
+gc:AutomaticPlan a gc:CreateTimeObject ;
+    dcterms:description "A reversible plan for package manufacture." .
+
+gc:AutomaticState a gc:CreateTimeObject ;
+    dcterms:description "Fingerprint, package integrity, and consequence state for automatic execution." .
+
+gc:AutomaticWatchReport a gc:CreateTimeObject ;
+    dcterms:description "A bounded watch execution with persisted fingerprint and consequence evidence." .
+
+gc:AutonomicCycle a gc:CreateTimeObject ;
+    dcterms:description "One bounded monitor-analyze-plan-execute-knowledge cycle." .
+
+gc:AutonomicKnowledge a gc:CreateTimeObject ;
+    dcterms:description "Bounded retained controller observations and decisions." .
+
+gc:PackageIntegrityReport a gc:CreateTimeObject ;
+    dcterms:description "A byte-exact comparison of a package against its package receipt." .
+
+gc:Intent a gc:CreateTimeObject ;
+    dcterms:description "Content-addressed proposed skill execution." .
+
+gc:Broker a gc:AuthorityBoundary ;
+    dcterms:description "Exclusive native filesystem and process actuation boundary." .
+
+gc:McpServer a gc:ProtocolEndpoint ;
+    gc:protocolVersion "2025-11-25" ;
+    gc:transport "stdio-jsonrpc" ;
+    gc:mayActuate false .
+
+gc:A2AServer a gc:ProtocolEndpoint ;
+    gc:protocolVersion "1.0" ;
+    gc:transport "jsonrpc-loopback-http" ;
+    gc:mayActuate false .
+
+gc:DurableTask a gc:CreateTimeObject ;
+    dcterms:description "Receiver-minted bounded task state with TTL, history, interruption, and resumption." .
+
+gc:NativeReceipt a gc:Receipt ;
+    gc:hashAlgorithm "sha256" .
+
+# Runtime properties
 
 gc:requiresConfirmation a rdf:Property .
 gc:protocolVersion a rdf:Property .
@@ -19,25 +52,152 @@ gc:transport a rdf:Property .
 gc:hashAlgorithm a rdf:Property .
 gc:allowedSkill a rdf:Property .
 gc:handoffTarget a rdf:Property .
+gc:parentReceipt a rdf:Property .
+gc:taskState a rdf:Property .
 
-gc:skill-capture-inspect a gc:Skill ; dcterms:title "capture.inspect" ; gc:authority gc:SELECT ; gc:requiresConfirmation false ; gc:mayActuate false .
-gc:skill-automatic-plan a gc:Skill ; dcterms:title "automatic.plan" ; gc:authority gc:CONSTRUCT ; gc:requiresConfirmation false ; gc:mayActuate false .
-gc:skill-package-build a gc:Skill ; dcterms:title "package.build" ; gc:authority gc:DO_INTENT ; gc:requiresConfirmation true ; gc:mayActuate false .
-gc:skill-automatic-create a gc:Skill ; dcterms:title "automatic.create" ; gc:authority gc:DO_INTENT ; gc:requiresConfirmation true ; gc:mayActuate false .
-gc:skill-autonomic-run a gc:Skill ; dcterms:title "autonomic.run" ; gc:authority gc:DO_INTENT ; gc:requiresConfirmation true ; gc:mayActuate false .
-gc:skill-parity-verify a gc:Skill ; dcterms:title "parity.verify" ; gc:authority gc:DO_INTENT ; gc:requiresConfirmation true ; gc:mayActuate false .
-gc:skill-selfplay-run a gc:Skill ; dcterms:title "selfplay.run" ; gc:authority gc:DO_INTENT ; gc:requiresConfirmation true ; gc:mayActuate false .
-gc:skill-receipt-verify a gc:Skill ; dcterms:title "receipt.verify" ; gc:authority gc:SELECT ; gc:requiresConfirmation false ; gc:mayActuate false .
-gc:skill-skills-list a gc:Skill ; dcterms:title "skills.list" ; gc:authority gc:SELECT ; gc:requiresConfirmation false ; gc:mayActuate false .
-gc:skill-agents-list a gc:Skill ; dcterms:title "agents.list" ; gc:authority gc:SELECT ; gc:requiresConfirmation false ; gc:mayActuate false .
-gc:skill-agents-route a gc:Skill ; dcterms:title "agents.route" ; gc:authority gc:SELECT ; gc:requiresConfirmation false ; gc:mayActuate false .
+# Canonical skills. Skills construct or submit intents; none actuates directly.
 
-gc:agent-receiver a gc:AgentRole ; dcterms:title "receiver" ; gc:allowedSkill gc:skill-capture-inspect ; gc:handoffTarget gc:agent-correspondence-analyst ; gc:mayActuate false .
-gc:agent-correspondence-analyst a gc:AgentRole ; dcterms:title "correspondence-analyst" ; gc:allowedSkill gc:skill-capture-inspect, gc:skill-automatic-plan ; gc:handoffTarget gc:agent-admission-referee ; gc:mayActuate false .
-gc:agent-manufacturing-architect a gc:AgentRole ; dcterms:title "manufacturing-architect" ; gc:allowedSkill gc:skill-automatic-plan, gc:skill-package-build, gc:skill-automatic-create, gc:skill-autonomic-run ; gc:handoffTarget gc:agent-verification-architect ; gc:mayActuate false .
-gc:agent-verification-architect a gc:AgentRole ; dcterms:title "verification-architect" ; gc:allowedSkill gc:skill-parity-verify ; gc:handoffTarget gc:agent-admission-referee ; gc:mayActuate false .
-gc:agent-skill-architect a gc:AgentRole ; dcterms:title "skill-architect" ; gc:allowedSkill gc:skill-skills-list ; gc:handoffTarget gc:agent-topology-architect ; gc:mayActuate false .
-gc:agent-topology-architect a gc:AgentRole ; dcterms:title "topology-architect" ; gc:allowedSkill gc:skill-agents-list, gc:skill-agents-route ; gc:handoffTarget gc:agent-admission-referee ; gc:mayActuate false .
-gc:agent-admission-referee a gc:AgentRole ; dcterms:title "admission-referee" ; gc:allowedSkill gc:skill-capture-inspect, gc:skill-automatic-plan, gc:skill-receipt-verify ; gc:handoffTarget gc:agent-adversarial-verifier ; gc:mayActuate false .
-gc:agent-adversarial-verifier a gc:AgentRole ; dcterms:title "adversarial-verifier" ; gc:allowedSkill gc:skill-selfplay-run, gc:skill-receipt-verify ; gc:handoffTarget gc:agent-certifier ; gc:mayActuate false .
-gc:agent-certifier a gc:AgentRole ; dcterms:title "certifier" ; gc:allowedSkill gc:skill-receipt-verify, gc:skill-skills-list, gc:skill-agents-list ; gc:mayActuate false .
+gc:skill-capture-inspect a gc:Skill ;
+    dcterms:title "capture.inspect" ;
+    gc:authority gc:SELECT ;
+    gc:requiresConfirmation false ;
+    gc:mayActuate false .
+
+gc:skill-automatic-plan a gc:Skill ;
+    dcterms:title "automatic.plan" ;
+    gc:authority gc:CONSTRUCT ;
+    gc:requiresConfirmation false ;
+    gc:mayActuate false .
+
+gc:skill-package-build a gc:Skill ;
+    dcterms:title "package.build" ;
+    gc:authority gc:DO_INTENT ;
+    gc:requiresConfirmation true ;
+    gc:mayActuate false .
+
+gc:skill-package-verify a gc:Skill ;
+    dcterms:title "package.verify" ;
+    gc:authority gc:SELECT ;
+    gc:requiresConfirmation false ;
+    gc:mayActuate false .
+
+gc:skill-automatic-create a gc:Skill ;
+    dcterms:title "automatic.create" ;
+    gc:authority gc:DO_INTENT ;
+    gc:requiresConfirmation true ;
+    gc:mayActuate false .
+
+gc:skill-automatic-watch a gc:Skill ;
+    dcterms:title "automatic.watch" ;
+    gc:authority gc:DO_INTENT ;
+    gc:requiresConfirmation true ;
+    gc:mayActuate false .
+
+gc:skill-autonomic-cycle a gc:Skill ;
+    dcterms:title "autonomic.cycle" ;
+    gc:authority gc:DO_INTENT ;
+    gc:requiresConfirmation true ;
+    gc:mayActuate false .
+
+gc:skill-autonomic-run a gc:Skill ;
+    dcterms:title "autonomic.run" ;
+    gc:authority gc:DO_INTENT ;
+    gc:requiresConfirmation true ;
+    gc:mayActuate false .
+
+gc:skill-parity-verify a gc:Skill ;
+    dcterms:title "parity.verify" ;
+    gc:authority gc:DO_INTENT ;
+    gc:requiresConfirmation true ;
+    gc:mayActuate false .
+
+gc:skill-selfplay-run a gc:Skill ;
+    dcterms:title "selfplay.run" ;
+    gc:authority gc:DO_INTENT ;
+    gc:requiresConfirmation true ;
+    gc:mayActuate false .
+
+gc:skill-receipt-verify a gc:Skill ;
+    dcterms:title "receipt.verify" ;
+    gc:authority gc:SELECT ;
+    gc:requiresConfirmation false ;
+    gc:mayActuate false .
+
+gc:skill-receipt-chain-verify a gc:Skill ;
+    dcterms:title "receipt.chain.verify" ;
+    gc:authority gc:SELECT ;
+    gc:requiresConfirmation false ;
+    gc:mayActuate false .
+
+gc:skill-skills-list a gc:Skill ;
+    dcterms:title "skills.list" ;
+    gc:authority gc:SELECT ;
+    gc:requiresConfirmation false ;
+    gc:mayActuate false .
+
+gc:skill-agents-list a gc:Skill ;
+    dcterms:title "agents.list" ;
+    gc:authority gc:SELECT ;
+    gc:requiresConfirmation false ;
+    gc:mayActuate false .
+
+gc:skill-agents-route a gc:Skill ;
+    dcterms:title "agents.route" ;
+    gc:authority gc:SELECT ;
+    gc:requiresConfirmation false ;
+    gc:mayActuate false .
+
+# Bounded agents and exact skill allowlists.
+
+gc:agent-receiver a gc:AgentRole ;
+    dcterms:title "receiver" ;
+    gc:allowedSkill gc:skill-capture-inspect ;
+    gc:handoffTarget gc:agent-correspondence-analyst ;
+    gc:mayActuate false .
+
+gc:agent-correspondence-analyst a gc:AgentRole ;
+    dcterms:title "correspondence-analyst" ;
+    gc:allowedSkill gc:skill-capture-inspect, gc:skill-automatic-plan ;
+    gc:handoffTarget gc:agent-admission-referee ;
+    gc:mayActuate false .
+
+gc:agent-manufacturing-architect a gc:AgentRole ;
+    dcterms:title "manufacturing-architect" ;
+    gc:allowedSkill gc:skill-automatic-plan, gc:skill-package-build, gc:skill-package-verify, gc:skill-automatic-create, gc:skill-automatic-watch, gc:skill-autonomic-cycle, gc:skill-autonomic-run ;
+    gc:handoffTarget gc:agent-verification-architect ;
+    gc:mayActuate false .
+
+gc:agent-verification-architect a gc:AgentRole ;
+    dcterms:title "verification-architect" ;
+    gc:allowedSkill gc:skill-parity-verify, gc:skill-package-verify ;
+    gc:handoffTarget gc:agent-admission-referee ;
+    gc:mayActuate false .
+
+gc:agent-skill-architect a gc:AgentRole ;
+    dcterms:title "skill-architect" ;
+    gc:allowedSkill gc:skill-skills-list ;
+    gc:handoffTarget gc:agent-topology-architect ;
+    gc:mayActuate false .
+
+gc:agent-topology-architect a gc:AgentRole ;
+    dcterms:title "topology-architect" ;
+    gc:allowedSkill gc:skill-agents-list, gc:skill-agents-route ;
+    gc:handoffTarget gc:agent-admission-referee ;
+    gc:mayActuate false .
+
+gc:agent-admission-referee a gc:AgentRole ;
+    dcterms:title "admission-referee" ;
+    gc:allowedSkill gc:skill-capture-inspect, gc:skill-automatic-plan, gc:skill-package-verify, gc:skill-receipt-verify, gc:skill-receipt-chain-verify ;
+    gc:handoffTarget gc:agent-adversarial-verifier ;
+    gc:mayActuate false .
+
+gc:agent-adversarial-verifier a gc:AgentRole ;
+    dcterms:title "adversarial-verifier" ;
+    gc:allowedSkill gc:skill-selfplay-run, gc:skill-receipt-verify, gc:skill-receipt-chain-verify ;
+    gc:handoffTarget gc:agent-certifier ;
+    gc:mayActuate false .
+
+gc:agent-certifier a gc:AgentRole ;
+    dcterms:title "certifier" ;
+    gc:allowedSkill gc:skill-package-verify, gc:skill-receipt-verify, gc:skill-receipt-chain-verify, gc:skill-skills-list, gc:skill-agents-list ;
+    gc:mayActuate false .
