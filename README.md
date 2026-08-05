@@ -2,7 +2,7 @@
 
 **Exemplar-to-ggen reverse compiler with Gall's-Law checkpoints.**
 
-`ggen-create` observes working exemplars, manufactures a candidate ggen manufacturing system, admits that system through explicit checkpoints, and emits a package that the separate `ggen` CLI can execute.
+`ggen-create` observes working exemplars, manufactures a reusable ggen manufacturing package, and verifies that the separate `ggen` CLI reconstructs and varies those exemplars correctly.
 
 > Create the factory. Admit the factory. Let ggen operate the factory.
 
@@ -15,18 +15,132 @@ ggen-create
       ↓
 admitted ggen package
       ↓
-ggen sync
+ggen sync run
       ↓
 artifacts + receipts
 ```
 
 `ggen-create` is create-time. `ggen` is construct-time.
 
-`ggen-create` must not become a second template engine, and `ggen` must not absorb repository archaeology, exemplar anti-unification, skill synthesis, or agent-topology inference.
+`ggen-create` does not render target artifacts itself. Its parity verifier invokes the public `ggen` executable inside isolated staging directories, then independently compares the resulting artifact projection.
 
-## Influences
+## Current implementation
 
-The immediate architectural influence is [`ronp001/hygen-create`](https://github.com/ronp001/hygen-create):
+The deterministic parity slice is implemented as a dependency-free Python 3.11+ CLI. It deliberately uses no agents.
+
+Implemented original-compatible commands:
+
+```text
+start
+rename
+add
+remove / rm
+usename
+setopt
+status / s
+generate / g
+abort
+verify
+compare
+```
+
+Equivalent native spellings are also available under:
+
+```text
+capture
+parameter
+package
+parity
+```
+
+The implementation provides:
+
+- original-compatible `ggen-create.json` capture state;
+- upward session discovery;
+- explicit bounded path admission;
+- recursive directory capture;
+- symlink, binary, non-UTF-8, missing-path, and outside-root refusals;
+- lexical case-family anti-unification across paths and contents;
+- mechanical status inspection;
+- deterministic ggen package manufacture;
+- unchanged-package no-op detection;
+- changed-package revision archival;
+- reconstruction and changed-parameter verification through the real `ggen` CLI;
+- optional behavioral command verification;
+- byte-exact comparison with an independently generated `hygen-create` reference tree;
+- a machine-readable P0–P7 parity report.
+
+## Install
+
+```bash
+python -m pip install -e .
+ggen-create --help
+```
+
+No runtime Python dependencies are required.
+
+## Original-compatible workflow
+
+```bash
+cd working-example
+
+ggen-create start greeter
+ggen-create add package.json dist/hello.js
+ggen-create usename Hello
+ggen-create status --verbose
+ggen-create generate --output ../packages
+```
+
+The result is a ggen project:
+
+```text
+../packages/greeter/
+├── ggen.toml
+├── ontology.ttl
+├── templates/
+├── ggen-create-package.json
+└── receipt.json
+```
+
+`ggen-create generate` creates the factory. It does not operate it.
+
+## Real parity verification
+
+```bash
+ggen-create verify \
+  --output ../verification \
+  --ggen-bin /path/to/ggen \
+  --set Hola \
+  --check-command "npm run {lower}" \
+  --stdout-contains "{capitalized}!" \
+  --reference-dir /path/to/original-hygen-output \
+  --reference-id "ronp001/hygen-create@0.2.1+hygen@1.6.2"
+```
+
+This executes:
+
+```text
+P0  reference identity
+P1  bounded capture
+P2  lexical transformations
+P3  mechanical inspection
+P4  exact Hello reconstruction
+P5  Hello → Hola variation
+P6  unchanged no-op + changed revision archive
+P7  byte-exact original-reference comparison
+```
+
+The final report is written to:
+
+```text
+verification/parity-report.json
+```
+
+Without `--reference-dir` and `--reference-id`, the internal rail can reach `PARTIAL_ALIVE`, but not the original-reference crown.
+
+## Architectural influence
+
+The immediate influence is [`ronp001/hygen-create`](https://github.com/ronp001/hygen-create):
 
 ```text
 existing working files
@@ -37,61 +151,50 @@ existing working files
 → emit a reusable generator
 ```
 
-`ggen-create` preserves that exemplar-first flow, but replaces ad hoc template authority with an admitted graph, SHACL constraints, held-out verification, and replayable receipts.
+The parity implementation preserves that flow and its capture-file shape. Its output, however, is a ggen package rather than a Hygen `_templates` directory.
 
-[`seanchatmangpt/ggen-legacy`](https://github.com/seanchatmangpt/ggen-legacy) is the large enterprise specialization of this problem: repository archaeology, contract reconstruction, replacement manufacture, behavioral closure, replay, and predecessor-retirement standing.
+[`seanchatmangpt/ggen-legacy`](https://github.com/seanchatmangpt/ggen-legacy) is the large enterprise specialization of the create-side problem: repository archaeology, authority reconstruction, replacement manufacture, behavioral closure, replay, and predecessor-retirement standing.
 
 ## Two checkpoint ladders
 
 ### 1. Parity ladder
 
-Proves that `ggen-create` can perform the original `hygen-create` job:
-
-1. reference identity
-2. capture parity
-3. lexical transformation parity
-4. inspection parity
-5. exact reconstruction
-6. changed-parameter variation
-7. iterative revision
-8. parity receipt
-
-This rail is deterministic and initially uses **no agents**.
+The implemented deterministic rail proves the original `hygen-create` job. It uses fixed skills and no subagents.
 
 ### 2. ggen-native ladder
 
-Begins only after parity is ALIVE:
+This begins only after exact-head parity CI is green:
 
-1. canonical graph creation
-2. SHACL and authority admission
-3. native ggen package manufacture
-4. skill synthesis
-5. bounded subagent synthesis
-6. held-out self-play
-7. self-hosting and replay
+1. canonical graph creation;
+2. SHACL and authority admission;
+3. native skill synthesis;
+4. bounded subagent synthesis;
+5. held-out self-play;
+6. self-hosting and replay.
 
-## Core invariants
+## Validation
 
-- `A = μ(O*)`: only admitted observations may manufacture artifacts with standing.
-- Zero unreceipted actuation.
-- Skills construct candidate objects; they do not receive ambient execution authority.
-- Agents compose skills and manufacture intents; BRCE is the exclusive DO path.
-- `UNKNOWN` is not admitted.
-- `UNSUPPORTED` is not `REFUSED`.
-- A successful render is not behavioral proof.
-- A checkpoint is not the crown.
-- Generated projections are not canonical editing surfaces.
+Local deterministic validation:
 
-## Initial repository standing
+```bash
+python -m compileall -q src tests
+python -m unittest discover -s tests -v
+```
+
+GitHub Actions additionally builds the real `ggen` CLI, installs the original `hygen-create` and Hygen packages, manufactures both Hola artifacts independently, executes the generated program, and compares the artifact trees byte-for-byte.
+
+## Standing
 
 ```text
-architecture:                 ADMITTED
-parity checkpoint design:     ADMITTED
-ggen-native checkpoint design: ADMITTED
-skills and agents design:     ADMITTED
-runtime implementation:       UNKNOWN
-parity execution:             NOT EXECUTED
-ggen-native self-play:         NOT EXECUTED
+architecture:                    ADMITTED
+deterministic parity skills:     ALIVE locally
+original-compatible CLI:         ALIVE locally
+ggen package emission:           ALIVE locally
+revision behavior:               ALIVE locally
+real ggen reconstruction:        CI GATE
+original hygen-create comparison: CI GATE
+P7 exact-head parity crown:       UNKNOWN until workflow completion
+ggen-native skills and agents:   NOT IMPLEMENTED
 ```
 
 ## Canonical authority
@@ -100,34 +203,9 @@ ggen-native self-play:         NOT EXECUTED
 2. [`product/PRD.md`](product/PRD.md)
 3. [`architecture/ARD.md`](architecture/ARD.md)
 4. [`docs/CHECKPOINTS.md`](docs/CHECKPOINTS.md)
-5. [`docs/SKILLS_AND_AGENTS.md`](docs/SKILLS_AND_AGENTS.md)
-6. [`docs/CLI_CONTRACT.md`](docs/CLI_CONTRACT.md)
-7. [`ontology/ggen-create.ttl`](ontology/ggen-create.ttl)
-8. [`shapes/ggen-create.shacl.ttl`](shapes/ggen-create.shacl.ttl)
-9. [`ROADMAP.md`](ROADMAP.md)
-
-## First ALIVE slice
-
-The first implementation must remain intentionally small:
-
-```text
-capture-session
-capture-paths
-seed-parameter
-lexical-anti-unify
-preview-correspondence
-emit-basic-ggen-package
-reconstruct-exemplar
-verify-parity-variation
-```
-
-Canonical fixture:
-
-```text
-Hello project
-→ inferred greeter package
-→ reconstruct Hello
-→ generate Hola
-→ execute Hola
-→ parity receipt
-```
+5. [`docs/PARITY_IMPLEMENTATION.md`](docs/PARITY_IMPLEMENTATION.md)
+6. [`docs/SKILLS_AND_AGENTS.md`](docs/SKILLS_AND_AGENTS.md)
+7. [`docs/CLI_CONTRACT.md`](docs/CLI_CONTRACT.md)
+8. [`ontology/ggen-create.ttl`](ontology/ggen-create.ttl)
+9. [`shapes/ggen-create.shacl.ttl`](shapes/ggen-create.shacl.ttl)
+10. [`ROADMAP.md`](ROADMAP.md)
