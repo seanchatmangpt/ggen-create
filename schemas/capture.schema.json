@@ -24,7 +24,9 @@
     },
     "name": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 _.-]{0,126}[A-Za-z0-9])?$"
     },
     "files_and_dirs": {
       "type": "object",
@@ -40,7 +42,9 @@
     },
     "templatize_using_name": {
       "type": ["string", "null"],
-      "minLength": 1
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 _.-]{0,126}[A-Za-z0-9])?$"
     },
     "gen_parent_dir": {
       "type": "boolean"
