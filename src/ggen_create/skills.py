@@ -124,6 +124,35 @@ SKILLS = (
         refusals=_CONFIRMATION_REFUSAL,
     ),
     SkillSpec(
+        name="legacy.plan",
+        description="Construct a bounded legacy-estate intake graph without actuation.",
+        authority="CONSTRUCT",
+        input_class="LegacyRepository",
+        output_class="LegacyManufacturingPlan",
+        requires_session=False,
+        verifier="deterministic-subject-manifest",
+    ),
+    SkillSpec(
+        name="legacy.power",
+        description="Manufacture a deterministic ggen-legacy receiving bundle.",
+        authority="DO_INTENT",
+        input_class="LegacyRepository",
+        output_class="LegacyReceivingBundle",
+        requires_confirmation=True,
+        requires_session=False,
+        verifier="bundle-receipt-and-replay",
+        refusals=_CONFIRMATION_REFUSAL,
+    ),
+    SkillSpec(
+        name="legacy.verify",
+        description="Independently verify a ggen-legacy receiving bundle and optional subject replay.",
+        authority="SELECT",
+        input_class="LegacyReceivingBundle",
+        output_class="LegacyBundleVerification",
+        requires_session=False,
+        verifier="receipt-output-and-subject-digests",
+    ),
+    SkillSpec(
         name="receipt.verify",
         description="Verify a native receipt digest.",
         authority="SELECT",
@@ -358,6 +387,67 @@ class Broker:
         confirm: bool,
     ) -> Any:
         output = self._path(args.get("output_root", "_ggen"))
+        if name == "legacy.plan":
+            from .legacy import plan_legacy_factory
+
+            return plan_legacy_factory(
+                self._path(args.get("subject_root", ".")),
+                output_root=self._path(
+                    args.get("output_root", "foundry/generated/ggen-create")
+                ),
+                program_id=str(
+                    args.get("program_id", "ggen-legacy-foundry")
+                ),
+                max_files=int(args.get("max_files", 50_000)),
+                max_bytes=int(
+                    args.get("max_bytes", 512 * 1024 * 1024)
+                ),
+            )
+        if name == "legacy.power":
+            from .legacy import build_legacy_bundle
+
+            value = build_legacy_bundle(
+                self._path(args.get("subject_root", ".")),
+                self._path(
+                    args.get("output_root", "foundry/generated/ggen-create")
+                ),
+                program_id=str(
+                    args.get("program_id", "ggen-legacy-foundry")
+                ),
+                force=bool(args.get("force", False)),
+                max_files=int(args.get("max_files", 50_000)),
+                max_bytes=int(
+                    args.get("max_bytes", 512 * 1024 * 1024)
+                ),
+            )
+            return {
+                "bundle": str(value.bundle_dir),
+                "changed": value.changed,
+                "receipt": str(value.receipt_path),
+                "subject_digest": value.subject_digest,
+                "bundle_digest": value.bundle_digest,
+                "state": "PARTIAL_ALIVE",
+            }
+        if name == "legacy.verify":
+            from .legacy import verify_legacy_bundle
+
+            raw_subject = args.get("subject_root")
+            return verify_legacy_bundle(
+                self._path(
+                    args.get(
+                        "bundle_root",
+                        args.get(
+                            "output_root",
+                            "foundry/generated/ggen-create",
+                        ),
+                    )
+                ),
+                subject_root=(
+                    self._path(raw_subject)
+                    if raw_subject
+                    else None
+                ),
+            )
         if name == "capture.inspect":
             from .inspect import inspect_session
 
