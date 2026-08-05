@@ -1,13 +1,21 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import time
 from typing import Any
 
 from .inspect import inspect_session
+from .integrity import verify_package
 from .model import GgenCreateError
 from .package import build_package
-from .runtime import ReceiptStore, atomic_write_json, digest_file, digest_json, utc_now
+from .runtime import (
+    ReceiptStore,
+    atomic_write_json,
+    digest_file,
+    digest_json,
+    utc_now,
+)
 from .session import admitted_files, load_session
 from .verify import verify_parity
 
@@ -15,7 +23,10 @@ from .verify import verify_parity
 def session_fingerprint(session_path: Path) -> dict[str, Any]:
     session = load_session(session_path)
     root = session_path.parent
-    files = {rel: digest_file(root / rel) for rel in admitted_files(session_path)}
+    files = {
+        rel: digest_file(root / rel)
+        for rel in admitted_files(session_path)
+    }
     subject = {
         "session": digest_file(session_path),
         "files": files,
@@ -24,6 +35,26 @@ def session_fingerprint(session_path: Path) -> dict[str, Any]:
         "gen_parent_dir": session["gen_parent_dir"],
     }
     return {**subject, "digest": digest_json(subject)}
+
+
+def _state_path(session_path: Path) -> Path:
+    return session_path.parent / ".ggen-create" / "automatic-state.json"
+
+
+def load_automatic_state(session_path: Path) -> dict[str, Any] | None:
+    path = _state_path(session_path)
+    if not path.is_file():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise GgenCreateError("AUTOMATIC_STATE_REFUSED", str(exc)) from exc
+    if not isinstance(value, dict):
+        raise GgenCreateError(
+            "AUTOMATIC_STATE_REFUSED",
+            "automatic state must be an object",
+        )
+    return value
 
 
 def automatic_plan(
@@ -64,7 +95,7 @@ def automatic_plan(
             }
         )
     return {
-        "schema": "ggen-create-automatic-plan/0.1",
+        "schema": "ggen-create-automatic-plan/0.2",
         "created_at": utc_now(),
         "session": str(session_path),
         "generator": report["generator"],
@@ -104,15 +135,24 @@ def run_automatic(
         )
 
     build = build_package(session_path, output_root, force=force)
+    integrity = verify_package(build.package_dir)
+    if not integrity["valid"]:
+        raise GgenCreateError(
+            "PACKAGE_INTEGRITY_REFUSED",
+            json.dumps(integrity, sort_keys=True),
+        )
     executed: list[dict[str, Any]] = [
         {
             "action": "package.build",
             "package": str(build.package_dir),
             "changed": build.changed,
-            "archived_previous": str(build.archived_previous)
-            if build.archived_previous
-            else None,
+            "archived_previous": (
+                str(build.archived_previous)
+                if build.archived_previous
+                else None
+            ),
             "receipt": str(build.receipt_path),
+            "integrity": integrity,
         }
     ]
     parity: dict[str, Any] | None = None
@@ -135,17 +175,17 @@ def run_automatic(
             }
         )
 
-    state_dir = session_path.parent / ".ggen-create"
     state = {
-        "schema": "ggen-create-automatic-state/0.1",
+        "schema": "ggen-create-automatic-state/0.2",
         "updated_at": utc_now(),
         "session": str(session_path),
         "fingerprint": plan["fingerprint"],
         "package": str(build.package_dir),
         "package_changed": build.changed,
+        "package_integrity": integrity,
         "parity_report": parity["report_path"] if parity else None,
     }
-    state_path = state_dir / "automatic-state.json"
+    state_path = _state_path(session_path)
     atomic_write_json(state_path, state)
     receipt = ReceiptStore(session_path.parent).append(
         operation="automatic.create",
@@ -159,6 +199,7 @@ def run_automatic(
         outputs={
             "package": str(build.package_dir),
             "changed": build.changed,
+            "integrity": integrity,
             "state": str(state_path),
             "parity": parity["report_path"] if parity else None,
         },
@@ -182,32 +223,68 @@ def watch_automatic(
     verify: bool = False,
     ggen_bin: str = "ggen",
     variation_value: str | None = None,
+    force: bool = False,
 ) -> dict[str, Any]:
+    session_path = session_path.resolve()
+    output_root = output_root.resolve()
     if cycles < 1 or cycles > 100:
-        raise GgenCreateError("WATCH_CYCLES_REFUSED", "cycles must be in [1, 100]")
+        raise GgenCreateError(
+            "WATCH_CYCLES_REFUSED",
+            "cycles must be in [1, 100]",
+        )
     if interval_seconds < 0 or interval_seconds > 3600:
         raise GgenCreateError(
-            "WATCH_INTERVAL_REFUSED", "interval must be between 0 and 3600 seconds"
+            "WATCH_INTERVAL_REFUSED",
+            "interval must be between 0 and 3600 seconds",
         )
+    if not confirm:
+        raise GgenCreateError(
+            "ACTUATION_CONFIRMATION_REQUIRED_REFUSED",
+            "automatic watch writes state and receipts and requires confirm=true",
+        )
+
+    recorded = load_automatic_state(session_path)
+    previous = (
+        recorded.get("fingerprint", {}).get("digest")
+        if recorded is not None
+        else None
+    )
+    recorded_package = (
+        Path(str(recorded.get("package")))
+        if recorded and recorded.get("package")
+        else None
+    )
     history: list[dict[str, Any]] = []
-    previous: str | None = None
     for index in range(cycles):
         fingerprint = session_fingerprint(session_path)["digest"]
-        if fingerprint != previous:
+        integrity = (
+            verify_package(recorded_package)
+            if recorded_package is not None
+            else {"valid": False, "reason": "PACKAGE_UNRECORDED"}
+        )
+        changed = fingerprint != previous or not integrity["valid"]
+        if changed:
             result = run_automatic(
                 session_path,
                 output_root=output_root,
                 apply=True,
-                confirm=confirm,
+                confirm=True,
                 verify=verify,
                 ggen_bin=ggen_bin,
                 variation_value=variation_value,
+                force=force,
             )
+            recorded_package = Path(result["executed"][0]["package"])
             history.append(
                 {
                     "cycle": index + 1,
                     "fingerprint": fingerprint,
                     "state": result["state"],
+                    "reason": (
+                        "FINGERPRINT_CHANGED"
+                        if fingerprint != previous
+                        else "PACKAGE_INTEGRITY_DRIFT"
+                    ),
                     "executed": result["executed"],
                 }
             )
@@ -218,14 +295,43 @@ def watch_automatic(
                     "cycle": index + 1,
                     "fingerprint": fingerprint,
                     "state": "STABLE",
+                    "reason": None,
+                    "integrity": integrity,
                     "executed": [],
                 }
             )
         if interval_seconds and index + 1 < cycles:
             time.sleep(interval_seconds)
-    return {
-        "schema": "ggen-create-automatic-watch/0.1",
+
+    converged = bool(history and history[-1]["state"] == "STABLE")
+    report = {
+        "schema": "ggen-create-automatic-watch/0.2",
         "state": "ALIVE",
+        "converged": converged,
         "cycles": history,
-        "converged": bool(history and history[-1]["state"] == "STABLE"),
     }
+    report_path = (
+        session_path.parent / ".ggen-create" / "automatic-watch-report.json"
+    )
+    atomic_write_json(report_path, report)
+    receipt = ReceiptStore(session_path.parent).append(
+        operation="automatic.watch",
+        state="ALIVE",
+        inputs={
+            "session": str(session_path),
+            "output_root": str(output_root),
+            "cycles": cycles,
+            "interval_seconds": interval_seconds,
+            "verify": verify,
+        },
+        outputs={
+            "report": str(report_path),
+            "converged": converged,
+            "executed_cycles": sum(
+                1 for item in history if item["executed"]
+            ),
+        },
+    )
+    report["report_path"] = str(report_path)
+    report["receipt"] = receipt
+    return report
