@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ggen.io/schemas/ggen-create/native-receipt.schema.json",
+  "title": "ggen-create native receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "receipt_id", "timestamp", "operation", "state", "subject_root", "inputs", "outputs", "algorithm", "receipt_digest"],
+  "properties": {
+    "schema": {"const": "ggen-create-native-receipt/0.1"},
+    "receipt_id": {"type": "string", "minLength": 1},
+    "timestamp": {"type": "string"},
+    "operation": {"type": "string", "minLength": 1},
+    "state": {"enum": ["ALIVE", "PARTIAL_ALIVE", "UNKNOWN", "BLOCKED", "BUILD_BROKEN", "UNSUPPORTED", "REFUSED"]},
+    "subject_root": {"type": "string", "minLength": 1},
+    "inputs": {"type": "object"},
+    "outputs": {"type": "object"},
+    "parent": {"type": ["string", "null"]},
+    "algorithm": {"const": "sha256"},
+    "receipt_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}
