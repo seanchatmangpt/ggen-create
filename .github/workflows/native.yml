@@ -16,7 +16,7 @@ permissions:
 jobs:
   native-runtime:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,21 +25,61 @@ jobs:
       - name: Install runtime and validators
         run: |
           python -m pip install -e .
-          python -m pip install rdflib
+          python -m pip install jsonschema pyshacl rdflib
       - name: Compile and execute all tests
         run: |
           python -m compileall -q src tests
           python -m unittest discover -s tests -v
-      - name: Parse machine-readable authority
+      - name: Admit machine-readable authority
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          from rdflib import Graph
-          for path in (Path("schemas/capture.schema.json"), Path("schemas/a2a-agent-card.schema.json"), Path("schemas/native-receipt.schema.json")):
-              json.loads(path.read_text())
-          for path in (Path("ontology/ggen-create.ttl"), Path("ontology/native-runtime.ttl"), Path("shapes/ggen-create.shacl.ttl"), Path("shapes/native-runtime.shacl.ttl")):
-              graph = Graph(); graph.parse(path, format="turtle"); assert len(graph) > 0, path
+
+          from pyshacl import validate
+          from rdflib import Graph, Namespace, RDF
+          from rdflib.namespace import DCTERMS
+
+          from ggen_create.agents import AGENTS
+          from ggen_create.skills import SKILLS
+
+          schema_paths = (
+              Path("schemas/capture.schema.json"),
+              Path("schemas/a2a-agent-card.schema.json"),
+              Path("schemas/native-receipt.schema.json"),
+              Path("schemas/native-task.schema.json"),
+          )
+          for path in schema_paths:
+              document = json.loads(path.read_text())
+              assert document["$schema"].endswith("2020-12/schema"), path
+
+          ontology = Graph()
+          ontology.parse("ontology/ggen-create.ttl", format="turtle")
+          ontology.parse("ontology/native-runtime.ttl", format="turtle")
+          shapes = Graph()
+          shapes.parse("shapes/ggen-create.shacl.ttl", format="turtle")
+          shapes.parse("shapes/native-runtime.shacl.ttl", format="turtle")
+          conforms, report_graph, report_text = validate(
+              ontology,
+              shacl_graph=shapes,
+              inference="rdfs",
+              abort_on_first=False,
+          )
+          assert conforms, report_text
+
+          GC = Namespace("https://ggen.io/ontology/ggen-create#")
+          ontology_skills = {
+              str(title)
+              for subject in ontology.subjects(RDF.type, GC.Skill)
+              for title in ontology.objects(subject, DCTERMS.title)
+          }
+          ontology_agents = {
+              str(title)
+              for subject in ontology.subjects(RDF.type, GC.AgentRole)
+              for title in ontology.objects(subject, DCTERMS.title)
+          }
+          assert ontology_skills == {skill.name for skill in SKILLS}
+          assert ontology_agents == {agent.name for agent in AGENTS}
           PY
       - name: Exercise automatic, autonomic, MCP, A2A, and self-play
         shell: bash
@@ -54,22 +94,123 @@ jobs:
           ggen-create usename Hello
           ggen-create automatic plan --output _ggen
           ggen-create automatic run --output _ggen --confirm
+          ggen-create automatic watch --output _ggen --cycles 1 --confirm
           ggen-create autonomic run --output _ggen --max-cycles 2 --stable-cycles 1 --apply --confirm
           ggen-create selfplay run --confirm
+          ggen-create receipt chain
           ggen-create --json doctor > doctor.json
           python - <<'PY'
+          import time
           from pathlib import Path
+
           from ggen_create.a2a import A2AService
-          from ggen_create.mcp import McpServer
+          from ggen_create.mcp import MCP_PROTOCOL_VERSION, McpServer
+
           root = Path.cwd()
           mcp = McpServer(root)
-          init = mcp.handle({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}})
-          assert init["result"]["protocolVersion"] == "2025-11-25"
-          assert len(mcp.handle({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}})["result"]["tools"]) >= 9
+          init = mcp.handle({
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "initialize",
+              "params": {
+                  "protocolVersion": MCP_PROTOCOL_VERSION,
+                  "capabilities": {"tasks": {}},
+                  "clientInfo": {"name": "ci", "version": "1"},
+              },
+          })
+          assert init["result"]["protocolVersion"] == MCP_PROTOCOL_VERSION
+          assert mcp.handle({
+              "jsonrpc": "2.0",
+              "method": "notifications/initialized",
+              "params": {},
+          }) is None
+          tools = mcp.handle({
+              "jsonrpc": "2.0",
+              "id": 2,
+              "method": "tools/list",
+              "params": {},
+          })
+          assert len(tools["result"]["tools"]) >= 9
+          started = mcp.handle({
+              "jsonrpc": "2.0",
+              "id": 3,
+              "method": "tools/call",
+              "params": {
+                  "name": "ggen_create_apply",
+                  "arguments": {
+                      "confirm": True,
+                      "output_root": "mcp-output",
+                  },
+                  "task": {"ttl": 60000, "pollInterval": 50},
+              },
+          })
+          task_id = started["result"]["task"]["taskId"]
+          for index in range(200):
+              task = mcp.handle({
+                  "jsonrpc": "2.0",
+                  "id": 100 + index,
+                  "method": "tasks/get",
+                  "params": {"taskId": task_id},
+              })["result"]
+              if task["status"] != "working":
+                  break
+              time.sleep(0.01)
+          assert task["status"] == "completed", task
+          result = mcp.handle({
+              "jsonrpc": "2.0",
+              "id": 4,
+              "method": "tasks/result",
+              "params": {"taskId": task_id},
+          })
+          assert "io.modelcontextprotocol/related-task" in result["result"]["_meta"]
+
           a2a = A2AService(root, base_url="http://127.0.0.1:8765")
-          assert a2a.agent_card()["supportedInterfaces"][0]["protocolVersion"] == "1.0"
-          response = a2a.handle_rpc({"jsonrpc":"2.0","id":3,"method":"SendMessage","params":{"message":{"messageId":"ci","role":"ROLE_USER","parts":[{"data":{"operation":"automatic.plan","arguments":{"output_root":"_ggen"}}}]}}})
+          card = a2a.agent_card()
+          assert card["supportedInterfaces"][0]["protocolVersion"] == "1.0"
+          response = a2a.handle_rpc({
+              "jsonrpc": "2.0",
+              "id": 5,
+              "method": "SendMessage",
+              "params": {
+                  "message": {
+                      "messageId": "ci",
+                      "role": "ROLE_USER",
+                      "parts": [{
+                          "data": {
+                              "operation": "automatic.plan",
+                              "arguments": {"output_root": "_ggen"},
+                          }
+                      }],
+                  }
+              },
+          })
           assert response["result"]["task"]["status"]["state"] == "TASK_STATE_COMPLETED"
+          PY
+      - name: Validate emitted receipts and tasks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/native-subject"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          from jsonschema import Draft202012Validator, FormatChecker
+
+          repository = Path(__import__("os").environ["GITHUB_WORKSPACE"])
+          receipt_schema = json.loads((repository / "schemas/native-receipt.schema.json").read_text())
+          task_schema = json.loads((repository / "schemas/native-task.schema.json").read_text())
+          receipt_validator = Draft202012Validator(receipt_schema, format_checker=FormatChecker())
+          task_validator = Draft202012Validator(task_schema, format_checker=FormatChecker())
+
+          receipts = list(Path(".ggen-create/receipts").glob("*.json"))
+          assert receipts
+          for path in receipts:
+              receipt_validator.validate(json.loads(path.read_text()))
+          tasks = list(Path(".ggen-create/tasks").glob("*/*.json"))
+          assert tasks
+          for path in tasks:
+              task_validator.validate(json.loads(path.read_text()))
           PY
       - name: Upload native evidence
         if: always()
