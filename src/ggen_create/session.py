@@ -10,6 +10,7 @@ from .model import (
     GgenCreateError,
     SESSION_FILE,
     SUPPORTED_SESSION_VERSIONS,
+    validate_identifier,
 )
 
 _SESSION_FIELDS = {
@@ -48,12 +49,12 @@ def start_session(
             "CAPTURE_ROOT_MISSING_REFUSED",
             f"not a directory: {root}",
         )
-    if not name:
-        raise GgenCreateError(
-            "EMPTY_GENERATOR_NAME_REFUSED",
-            "name must not be empty",
-        )
-    _validate_capture_path(filename)
+    name = validate_identifier(
+        name,
+        code="GENERATOR_NAME_REFUSED",
+        label="generator name",
+    )
+    filename = _validate_capture_path(filename)
     path = root / filename
     if path.exists():
         raise GgenCreateError(
@@ -65,7 +66,7 @@ def start_session(
 
 
 def find_session(start: Path, filename: str = SESSION_FILE) -> Path:
-    _validate_capture_path(filename)
+    filename = _validate_capture_path(filename)
     current = start.resolve()
     if current.is_file():
         current = current.parent
@@ -94,6 +95,11 @@ def _validate_capture_path(value: Any) -> str:
             f"capture path contains NUL: {value!r}",
         )
     normalized = value.replace("\\", "/")
+    if normalized in {".", ".."}:
+        raise GgenCreateError(
+            "SESSION_PATH_REFUSED",
+            f"capture path contains an unsafe segment: {value!r}",
+        )
     posix = PurePosixPath(normalized)
     windows = PureWindowsPath(value)
     if posix.is_absolute() or windows.is_absolute() or windows.drive:
@@ -140,11 +146,11 @@ def _validate_session_document(value: Any, path: Path) -> dict[str, Any]:
             f"unsupported capture version {version!r}; supported: "
             + ", ".join(SUPPORTED_SESSION_VERSIONS),
         )
-    if not isinstance(value.get("name"), str) or not value["name"]:
-        raise GgenCreateError(
-            "SESSION_SCHEMA_REFUSED",
-            "name must be a non-empty string",
-        )
+    value["name"] = validate_identifier(
+        value.get("name"),
+        code="GENERATOR_NAME_REFUSED",
+        label="generator name",
+    )
     files = value.get("files_and_dirs")
     if not isinstance(files, dict) or not files:
         raise GgenCreateError(
@@ -167,10 +173,11 @@ def _validate_session_document(value: Any, path: Path) -> dict[str, Any]:
         normalized_files[rel] = included
     value["files_and_dirs"] = normalized_files
     seed = value.get("templatize_using_name")
-    if seed is not None and (not isinstance(seed, str) or not seed):
-        raise GgenCreateError(
-            "SESSION_SCHEMA_REFUSED",
-            "templatize_using_name must be null or a non-empty string",
+    if seed is not None:
+        value["templatize_using_name"] = validate_identifier(
+            seed,
+            code="PARAMETER_SEED_REFUSED",
+            label="parameter seed",
         )
     if not isinstance(value.get("gen_parent_dir"), bool):
         raise GgenCreateError(
@@ -299,22 +306,22 @@ def remove_paths(
 
 
 def set_seed(session_path: Path, value: str) -> None:
-    if not value:
-        raise GgenCreateError(
-            "EMPTY_PARAMETER_REFUSED",
-            "seed must not be empty",
-        )
+    value = validate_identifier(
+        value,
+        code="PARAMETER_SEED_REFUSED",
+        label="parameter seed",
+    )
     session = load_session(session_path)
     session["templatize_using_name"] = value
     save_session(session_path, session)
 
 
 def rename_session(session_path: Path, name: str) -> None:
-    if not name:
-        raise GgenCreateError(
-            "EMPTY_GENERATOR_NAME_REFUSED",
-            "name must not be empty",
-        )
+    name = validate_identifier(
+        name,
+        code="GENERATOR_NAME_REFUSED",
+        label="generator name",
+    )
     session = load_session(session_path)
     session["name"] = name
     save_session(session_path, session)
