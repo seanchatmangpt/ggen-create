@@ -20,7 +20,7 @@ ggen sync run
 artifacts + receipts
 ```
 
-`ggen-create` is create-time. `ggen` is construct-time. Skills and agents manufacture candidate graphs and intents; the Broker is the exclusive confirmed DO boundary.
+`ggen-create` is create-time. `ggen` is construct-time. Native skills and agents manufacture candidate graphs and intents; the Broker is the exclusive confirmed native DO boundary. Original-compatible capture commands remain a deliberately fenced compatibility surface.
 
 ## Install
 
@@ -31,7 +31,7 @@ ggen-create-mcp --help
 ggen-create-a2a --help
 ```
 
-The runtime is dependency-free on Python 3.11+.
+The installed runtime has no third-party Python runtime dependencies and supports Python 3.11+.
 
 ## Original-compatible parity
 
@@ -60,7 +60,7 @@ ggen-create automatic run --output _ggen --confirm
 ggen-create automatic watch --output _ggen --cycles 3 --confirm
 ```
 
-Planning is reversible and writes nothing. Apply requires explicit confirmation, records the exemplar fingerprint, and emits a receipt.
+Planning is reversible and writes nothing. Apply requires explicit confirmation, records the exemplar fingerprint, verifies the emitted package against its package receipt, and emits a chained native receipt. Watch persists its prior fingerprint, performs a real stable no-op, and repairs either exemplar drift or package-integrity drift.
 
 ## Autonomic mode
 
@@ -73,7 +73,19 @@ ggen-create autonomic run \
   --confirm
 ```
 
-The controller is a bounded MAPE-K loop. It stops on convergence, a typed block, or the configured cycle ceiling. It never retries without bound.
+The controller is a bounded integrity-aware MAPE-K loop. It distinguishes absent, corrupted, knowledge-drifted, and exemplar-drifted factories. It stops on convergence, a typed block, or the configured cycle ceiling. An unconverged ceiling is `PARTIAL_ALIVE`, never `ALIVE`.
+
+## Package and ledger verification
+
+```bash
+ggen-create package verify --output _ggen
+ggen-create receipt latest
+ggen-create receipt verify
+ggen-create receipt chain
+ggen-create --json doctor
+```
+
+Package verification compares every emitted byte with `receipt.json`. Native receipt-chain verification rejects duplicate digests, multiple roots, branches, cycles or incomplete traversal, orphan parents, subject-root drift, tampering, and stale `latest.json` pointers.
 
 ## Skills and agents
 
@@ -84,7 +96,7 @@ ggen-create agents route "manufacture package"
 ggen-create selfplay run --confirm
 ```
 
-Eleven canonical skills and nine bounded agents are implemented. Every skill and agent declares `mayActuate=false`. Write skills require confirmation and cross the Broker boundary.
+Fifteen canonical skills and nine bounded agents are implemented. Every skill and agent declares `mayActuate=false`. Native write skills require explicit confirmation and cross the Broker boundary. Confirmed failures receive typed failure receipts as well as successful consequences.
 
 ## MCP
 
@@ -98,10 +110,13 @@ Profile:
 
 - protocol revision `2025-11-25`;
 - stdio JSON-RPC transport;
-- lifecycle, tools, resources, prompts, and durable task methods;
-- nine tools;
-- allowlisted resources only;
-- confirmation on every write tool.
+- strict initialize → initialized lifecycle;
+- 14 tools and six allowlisted resources;
+- prompts and durable task get/list/result/cancel methods;
+- negotiated task-augmented execution with TTL and polling metadata;
+- related-task metadata on terminal results;
+- schema validation and explicit confirmation on every write tool;
+- package-integrity, automatic-watch, autonomic-cycle, receipt-chain, and doctor projections.
 
 See [`docs/MCP.md`](docs/MCP.md).
 
@@ -115,17 +130,20 @@ ggen-create-a2a --root . --host 127.0.0.1 --port 8765
 Profile:
 
 - protocol profile `1.0`;
-- Agent Card discovery at `/.well-known/agent-card.json`;
+- cacheable Agent Card discovery at `/.well-known/agent-card.json`;
+- required `A2A-Version: 1.0` HTTP negotiation;
 - JSON-RPC `SendMessage`, `GetTask`, `ListTasks`, and `CancelTask`;
-- durable task storage;
-- deterministic routing into the canonical agent graph;
-- loopback-only built-in HTTP transport.
+- durable task storage, status filtering, pagination, and bounded history;
+- `INPUT_REQUIRED` interruption followed by same-task continuation;
+- deterministic routing into the complete canonical skill/agent graph;
+- terminal task failure containment;
+- loopback-only unauthenticated built-in HTTP transport with bounded request bodies.
 
 See [`docs/A2A.md`](docs/A2A.md).
 
-## Native receipts
+## Native evidence
 
-Confirmed consequences are stored under:
+Confirmed consequences and protocol tasks are stored under:
 
 ```text
 .ggen-create/receipts/
@@ -133,10 +151,19 @@ Confirmed consequences are stored under:
 .ggen-create/tasks/a2a/
 ```
 
-```bash
-ggen-create receipt latest
-ggen-create receipt verify
+Machine-readable admission includes:
+
+```text
+schemas/native-receipt.schema.json
+schemas/native-task.schema.json
+schemas/a2a-agent-card.schema.json
+ontology/native-runtime.ttl
+shapes/native-runtime.shacl.ttl
 ```
+
+## Self-play
+
+The bounded self-play rail attacks authority, confirmation, intent digests, path escape, no-op behavior, package corruption, autonomic repair, task transition law, TTL expiry, MCP lifecycle and durable tasks, A2A interruption/continuation, receipt tampering, and complete receipt-chain closure.
 
 ## Checkpoint ladders
 
@@ -150,14 +177,15 @@ P0–P7  hygen-create architectural and consequence parity
 
 ```text
 N0 automatic plan
-N1 automatic consequence
-N2 autonomic convergence
-N3 skill authority
-N4 agent topology
-N5 MCP consequence
-N6 A2A consequence
-N7 adversarial self-play
-N8 receipt verification
+N1 automatic consequence + package integrity
+N2 persistent automatic watch
+N3 autonomic convergence and repair
+N4 skill authority and Broker receipts
+N5 agent topology and deterministic routing
+N6 MCP lifecycle, tools, resources, and durable tasks
+N7 A2A discovery, tasks, interruption, and continuation
+N8 adversarial self-play
+N9 receipt-ledger verification and evidence doctor
 ```
 
 ## Validation
@@ -167,24 +195,23 @@ python -m compileall -q src tests
 python -m unittest discover -s tests -v
 ```
 
-GitHub Actions independently executes the native protocol rail and the pinned real-ggen/original-hygen parity crown.
+GitHub Actions additionally performs SHACL validation, checks exact ontology-to-code skill and agent closure, validates emitted task and receipt instances against JSON Schema, executes the native protocol rail, and runs the pinned real-ggen/original-hygen parity crown.
 
 ## Current standing
 
 ```text
-architecture and authority:          ADMITTED
-deterministic parity implementation: ALIVE in tests
-automatic runtime:                   ALIVE in tests
-autonomic runtime:                   ALIVE in tests
-skill and agent authority:           ALIVE in tests
-MCP 2025-11-25 profile:              ALIVE in tests
-A2A 1.0 profile:                     ALIVE in tests
-adversarial self-play:               ALIVE in tests
-exact-head native workflow:          CI GATE
-P7 real-ggen/original crown:          CI GATE
-production network deployment:       UNKNOWN
-self-hosting crown:                   NOT EXECUTED
+architecture and authority corpus:  ADMITTED
+runtime implementation:             IMPLEMENTED
+native semantic tests:              EXACT-HEAD CI GATE
+MCP 2025-11-25 execution:            EXACT-HEAD CI GATE
+A2A 1.0 execution:                   EXACT-HEAD CI GATE
+P7 real-ggen/original crown:         EXACT-HEAD CI GATE
+production network deployment:      UNKNOWN
+multi-parameter structural roadmap: NOT IMPLEMENTED
+self-hosting crown:                  NOT EXECUTED
 ```
+
+Queued or pending workflow metadata is not execution evidence.
 
 ## Canonical authority
 
