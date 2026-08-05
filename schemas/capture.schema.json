@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ggen.io/schemas/ggen-create/capture.schema.json",
-  "title": "ggen-create parity capture",
-  "description": "Original hygen-create-compatible capture state. The session file location is the capture root.",
+  "title": "ggen-create compatible capture session",
+  "description": "Capture state compatible with upstream hygen-create 0.2 sessions and ggen-create 0.3/0.4 sessions. The session file location is the capture root.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -20,7 +20,7 @@
     },
     "hygen_create_version": {
       "type": "string",
-      "const": "0.2.0"
+      "enum": ["0.2.0", "0.2.1", "0.3.0", "0.4.0"]
     },
     "name": {
       "type": "string",
