@@ -5,6 +5,12 @@ from pathlib import Path
 from typing import Any
 
 APP_VERSION = "0.4.0"
+SUPPORTED_SESSION_VERSIONS = (
+    "0.2.0",
+    "0.2.1",
+    "0.3.0",
+    APP_VERSION,
+)
 SESSION_FILE = "ggen-create.json"
 ABOUT = (
     "This is a hygen-create definitions file. The hygen-create utility creates "

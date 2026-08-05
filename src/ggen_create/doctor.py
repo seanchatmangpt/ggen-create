@@ -160,16 +160,27 @@ def doctor_report(
         "namespaces": task_checks,
     }
 
-    states = [
-        value.get("state")
+    stateful_checks = [
+        value
         for value in checks.values()
         if isinstance(value, dict) and "state" in value
     ]
+    states = [value["state"] for value in stateful_checks]
+    material_blocks = [
+        value
+        for value in stateful_checks
+        if value.get("state") == "BLOCKED"
+        and value.get("refusal") != "NO_SESSION_REFUSED"
+    ]
     if "REFUSED" in states:
         state = "REFUSED"
-    elif "BLOCKED" in states:
+    elif material_blocks:
         state = "BLOCKED"
-    elif "UNKNOWN" in states or "PARTIAL_ALIVE" in states:
+    elif (
+        "BLOCKED" in states
+        or "UNKNOWN" in states
+        or "PARTIAL_ALIVE" in states
+    ):
         state = "PARTIAL_ALIVE"
     else:
         state = "ALIVE"
