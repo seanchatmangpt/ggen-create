@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from .model import GgenCreateError
+from .model import GgenCreateError, SESSION_FILE
 from .runtime import Intent, ReceiptStore, require_under
 
 
@@ -16,6 +16,7 @@ class SkillSpec:
     input_class: str
     output_class: str
     requires_confirmation: bool = False
+    requires_session: bool = True
     may_actuate: bool = False
     verifier: str = ""
     refusals: tuple[str, ...] = ()
@@ -29,137 +30,151 @@ class SkillSpec:
 _CONFIRMATION_REFUSAL = ("ACTUATION_CONFIRMATION_REQUIRED_REFUSED",)
 SKILLS = (
     SkillSpec(
-        "capture.inspect",
-        "Inspect admitted correspondences.",
-        "SELECT",
-        "CaptureSession",
-        "InspectionReport",
+        name="capture.inspect",
+        description="Inspect admitted correspondences.",
+        authority="SELECT",
+        input_class="CaptureSession",
+        output_class="InspectionReport",
         verifier="mechanical-correspondence-count",
     ),
     SkillSpec(
-        "automatic.plan",
-        "Plan exemplar-to-package manufacture.",
-        "CONSTRUCT",
-        "CaptureSession",
-        "AutomaticPlan",
+        name="automatic.plan",
+        description="Plan exemplar-to-package manufacture.",
+        authority="CONSTRUCT",
+        input_class="CaptureSession",
+        output_class="AutomaticPlan",
         verifier="plan-schema",
     ),
     SkillSpec(
-        "package.build",
-        "Manufacture a deterministic ggen package.",
-        "DO_INTENT",
-        "CaptureSession",
-        "GgenPackage",
-        True,
+        name="package.build",
+        description="Manufacture a deterministic ggen package.",
+        authority="DO_INTENT",
+        input_class="CaptureSession",
+        output_class="GgenPackage",
+        requires_confirmation=True,
         verifier="package-receipt",
         refusals=_CONFIRMATION_REFUSAL,
     ),
     SkillSpec(
-        "package.verify",
-        "Verify package contents against its package receipt.",
-        "SELECT",
-        "GgenPackage",
-        "PackageIntegrityReport",
+        name="package.verify",
+        description="Verify package contents against its package receipt.",
+        authority="SELECT",
+        input_class="GgenPackage",
+        output_class="PackageIntegrityReport",
         verifier="sha256-package-manifest",
     ),
     SkillSpec(
-        "automatic.create",
-        "Execute automatic package manufacture.",
-        "DO_INTENT",
-        "CaptureSession",
-        "AutomaticReport",
-        True,
+        name="automatic.create",
+        description="Execute automatic package manufacture.",
+        authority="DO_INTENT",
+        input_class="CaptureSession",
+        output_class="AutomaticReport",
+        requires_confirmation=True,
         verifier="automatic-receipt",
         refusals=_CONFIRMATION_REFUSAL,
     ),
     SkillSpec(
-        "automatic.watch",
-        "Observe bounded changes and manufacture only on drift.",
-        "DO_INTENT",
-        "AutomaticWatchPolicy",
-        "AutomaticWatchReport",
-        True,
+        name="automatic.watch",
+        description="Observe bounded changes and manufacture only on drift.",
+        authority="DO_INTENT",
+        input_class="AutomaticWatchPolicy",
+        output_class="AutomaticWatchReport",
+        requires_confirmation=True,
         verifier="persisted-fingerprint-and-receipt",
         refusals=_CONFIRMATION_REFUSAL,
     ),
     SkillSpec(
-        "autonomic.cycle",
-        "Execute one bounded MAPE-K control cycle.",
-        "DO_INTENT",
-        "AutonomicPolicy",
-        "AutonomicCycle",
-        True,
+        name="autonomic.cycle",
+        description="Execute one bounded MAPE-K control cycle.",
+        authority="DO_INTENT",
+        input_class="AutonomicPolicy",
+        output_class="AutonomicCycle",
+        requires_confirmation=True,
         verifier="cycle-knowledge",
         refusals=_CONFIRMATION_REFUSAL,
     ),
     SkillSpec(
-        "autonomic.run",
-        "Run bounded MAPE-K convergence.",
-        "DO_INTENT",
-        "AutonomicPolicy",
-        "AutonomicReport",
-        True,
+        name="autonomic.run",
+        description="Run bounded MAPE-K convergence.",
+        authority="DO_INTENT",
+        input_class="AutonomicPolicy",
+        output_class="AutonomicReport",
+        requires_confirmation=True,
         verifier="convergence-and-receipt",
         refusals=_CONFIRMATION_REFUSAL,
     ),
     SkillSpec(
-        "parity.verify",
-        "Execute P0-P7 parity verification.",
-        "DO_INTENT",
-        "ParityRequest",
-        "ParityReport",
-        True,
+        name="parity.verify",
+        description="Execute P0-P7 parity verification.",
+        authority="DO_INTENT",
+        input_class="ParityRequest",
+        output_class="ParityReport",
+        requires_confirmation=True,
         verifier="P0-P7-checkpoints",
         refusals=_CONFIRMATION_REFUSAL,
     ),
     SkillSpec(
-        "selfplay.run",
-        "Run adversarial native scenarios.",
-        "DO_INTENT",
-        "SelfPlayRequest",
-        "SelfPlayReport",
-        True,
+        name="selfplay.run",
+        description="Run adversarial native scenarios.",
+        authority="DO_INTENT",
+        input_class="SelfPlayRequest",
+        output_class="SelfPlayReport",
+        requires_confirmation=True,
         verifier="all-scenarios-alive",
         refusals=_CONFIRMATION_REFUSAL,
     ),
     SkillSpec(
-        "receipt.verify",
-        "Verify a native receipt digest.",
-        "SELECT",
-        "Receipt",
-        "ReceiptVerification",
+        name="receipt.verify",
+        description="Verify a native receipt digest.",
+        authority="SELECT",
+        input_class="Receipt",
+        output_class="ReceiptVerification",
+        requires_session=False,
         verifier="sha256-recompute",
     ),
     SkillSpec(
-        "receipt.chain.verify",
-        "Verify the complete native receipt chain.",
-        "SELECT",
-        "ReceiptLedger",
-        "ReceiptChainVerification",
+        name="receipt.chain.verify",
+        description="Verify the complete native receipt chain.",
+        authority="SELECT",
+        input_class="ReceiptLedger",
+        output_class="ReceiptChainVerification",
+        requires_session=False,
         verifier="parent-digest-chain",
     ),
     SkillSpec(
-        "skills.list",
-        "List canonical skill contracts.",
-        "SELECT",
-        "None",
-        "SkillGraph",
+        name="doctor.inspect",
+        description="Calculate evidence-backed runtime standing.",
+        authority="SELECT",
+        input_class="SubjectRoot",
+        output_class="DoctorReport",
+        requires_session=False,
+        verifier="runtime-package-ledger-task-standing",
+    ),
+    SkillSpec(
+        name="skills.list",
+        description="List canonical skill contracts.",
+        authority="SELECT",
+        input_class="None",
+        output_class="SkillGraph",
+        requires_session=False,
         verifier="registry-closure",
     ),
     SkillSpec(
-        "agents.list",
-        "List bounded agent contracts.",
-        "SELECT",
-        "None",
-        "AgentGraph",
+        name="agents.list",
+        description="List bounded agent contracts.",
+        authority="SELECT",
+        input_class="None",
+        output_class="AgentGraph",
+        requires_session=False,
         verifier="topology-closure",
     ),
     SkillSpec(
-        "agents.route",
-        "Route a goal deterministically.",
-        "SELECT",
-        "Goal",
-        "Handoff",
+        name="agents.route",
+        description="Route a goal deterministically.",
+        authority="SELECT",
+        input_class="Goal",
+        output_class="Handoff",
+        requires_session=False,
         verifier="deterministic-router",
     ),
 )
@@ -204,11 +219,25 @@ class Broker:
             candidate = self.subject_root / candidate
         return require_under(self.subject_root, candidate)
 
+    def _session(
+        self,
+        skill: SkillSpec,
+        session_path: Path | None,
+    ) -> Path:
+        if session_path is None:
+            if skill.requires_session:
+                raise GgenCreateError(
+                    "SESSION_REQUIRED_REFUSED",
+                    f"{skill.name} requires a capture session",
+                )
+            return self.subject_root
+        return require_under(self.subject_root, session_path)
+
     def execute(
         self,
         intent: Intent,
         *,
-        session_path: Path,
+        session_path: Path | None = None,
         confirm: bool = False,
     ) -> dict[str, Any]:
         intent.verify()
@@ -233,12 +262,12 @@ class Broker:
                 "ACTUATION_CONFIRMATION_REQUIRED_REFUSED",
                 skill.name,
             )
-        session_path = require_under(self.subject_root, session_path)
+        resolved_session = self._session(skill, session_path)
 
         try:
             result = self._dispatch(
                 skill.name,
-                session_path,
+                resolved_session,
                 dict(intent.arguments),
                 confirm,
             )
@@ -250,7 +279,7 @@ class Broker:
                     state="BLOCKED",
                     inputs={
                         "intent": intent.to_dict(),
-                        "session": str(session_path),
+                        "session": str(resolved_session),
                     },
                     outputs={
                         "refusal": exc.code,
@@ -259,6 +288,29 @@ class Broker:
                 )
                 exc.add_note(f"failure receipt: {receipt['path']}")
             raise
+        except Exception as exc:
+            receipt = None
+            if skill.requires_confirmation:
+                receipt = self.receipts.append(
+                    operation=skill.name,
+                    state="BLOCKED",
+                    inputs={
+                        "intent": intent.to_dict(),
+                        "session": str(resolved_session),
+                    },
+                    outputs={
+                        "refusal": "SKILL_INTERNAL_ERROR",
+                        "type": type(exc).__name__,
+                        "detail": str(exc),
+                    },
+                )
+            failure = GgenCreateError(
+                "SKILL_INTERNAL_ERROR",
+                f"{skill.name}: {type(exc).__name__}: {exc}",
+            )
+            if receipt is not None:
+                failure.add_note(f"failure receipt: {receipt['path']}")
+            raise failure from exc
 
         standing = (
             str(result.get("state", "ALIVE"))
@@ -272,7 +324,7 @@ class Broker:
                 state=standing,
                 inputs={
                     "intent": intent.to_dict(),
-                    "session": str(session_path),
+                    "session": str(resolved_session),
                 },
                 outputs={"result": result},
             )
@@ -351,9 +403,9 @@ class Broker:
             from .session import load_session
 
             generator = load_session(session)["name"]
-            return verify_package(
-                self._path(args.get("package", output / generator))
-            )
+            raw_package = args.get("package")
+            package = raw_package if raw_package else output / generator
+            return verify_package(self._path(package))
         if name == "automatic.create":
             from .automatic import run_automatic
 
@@ -446,6 +498,13 @@ class Broker:
             return ReceiptStore.verify(self._path(raw))
         if name == "receipt.chain.verify":
             return self.receipts.verify_chain()
+        if name == "doctor.inspect":
+            from .doctor import doctor_report
+
+            return doctor_report(
+                self.subject_root,
+                project=str(args.get("project", SESSION_FILE)),
+            )
         if name == "skills.list":
             return self.registry.list()
         if name in {"agents.list", "agents.route"}:
