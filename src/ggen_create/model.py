@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.4.0"
 SESSION_FILE = "ggen-create.json"
 ABOUT = (
     "This is a hygen-create definitions file. The hygen-create utility creates "
