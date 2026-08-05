@@ -25,6 +25,7 @@ VARIABLES = [
     "kebab",
     "title",
 ]
+PACKAGE_RECEIPT_SCHEMA = "ggen-create-package-receipt/0.2"
 
 
 def _turtle_literal(value: str) -> str:
@@ -85,12 +86,52 @@ def _file_hash(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
+def _canonical_json(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+
+def _receipt_document(
+    files: dict[str, bytes],
+    *,
+    operation: str,
+    generator: str,
+    parameter_value: str,
+    parent: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "schema": PACKAGE_RECEIPT_SCHEMA,
+        "algorithm": "sha256",
+        "operation": operation,
+        "generator": generator,
+        "parameter_value": parameter_value,
+        "parent": parent,
+        "files": {
+            path: _file_hash(content)
+            for path, content in sorted(files.items(), key=lambda item: item[0])
+        },
+    }
+    return {
+        **payload,
+        "receipt_digest": _file_hash(_canonical_json(payload)),
+    }
+
+
+def _receipt_bytes(receipt: dict[str, Any]) -> bytes:
+    return json.dumps(receipt, indent=2, sort_keys=True).encode("utf-8")
+
+
 def _planned_files(session_path: Path) -> dict[str, bytes]:
     session = load_session(session_path)
     seed = session["templatize_using_name"]
     if not seed:
         raise GgenCreateError(
-            "PARAMETER_NOT_SEEDED_REFUSED", "run 'ggen-create usename <value>'"
+            "PARAMETER_NOT_SEEDED_REFUSED",
+            "run 'ggen-create usename <value>'",
         )
     root = session_path.parent
     files = admitted_files(session_path)
@@ -142,28 +183,22 @@ def _planned_files(session_path: Path) -> dict[str, bytes]:
         "schema": "ggen-create-package/0.1",
         "generator": session["name"],
         "source_root": str(root.resolve()),
-        "parameter": {"id": "name", "seed": seed},
+        "parameter": {"id": "name", "seed": seed, "value": seed},
         "gen_parent_dir": session["gen_parent_dir"],
         "files": template_manifest,
     }
     planned["ggen-create-package.json"] = json.dumps(
-        metadata, indent=2, sort_keys=True
+        metadata,
+        indent=2,
+        sort_keys=True,
     ).encode("utf-8")
-
-    receipt_subject = {
-        path: _file_hash(content)
-        for path, content in sorted(planned.items(), key=lambda item: item[0])
-    }
-    receipt = {
-        "schema": "ggen-create-parity-receipt/0.1",
-        "algorithm": "sha256",
-        "operation": "package-build",
-        "generator": session["name"],
-        "files": receipt_subject,
-    }
-    planned["receipt.json"] = json.dumps(receipt, indent=2, sort_keys=True).encode(
-        "utf-8"
+    receipt = _receipt_document(
+        planned,
+        operation="package-build",
+        generator=session["name"],
+        parameter_value=seed,
     )
+    planned["receipt.json"] = _receipt_bytes(receipt)
     return planned
 
 
@@ -222,11 +257,98 @@ def build_package(
     return BuildResult(target, True, archived, target / "receipt.json")
 
 
-def rewrite_package_parameter(package_dir: Path, value: str) -> None:
+def _read_json_object(path: Path, code: str) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise GgenCreateError(code, f"{path}: {exc}") from exc
+    if not isinstance(value, dict):
+        raise GgenCreateError(code, f"{path} must contain an object")
+    return value
+
+
+def _package_files(package_dir: Path) -> dict[str, bytes]:
+    receipt_path = package_dir / "receipt.json"
+    return {
+        path.relative_to(package_dir).as_posix(): path.read_bytes()
+        for path in sorted(package_dir.rglob("*"))
+        if path.is_file() and path != receipt_path
+    }
+
+
+def rewrite_package_parameter(package_dir: Path, value: str) -> dict[str, Any]:
+    if not value:
+        raise GgenCreateError(
+            "EMPTY_PARAMETER_REFUSED",
+            "package parameter value must not be empty",
+        )
+    package_dir = package_dir.resolve()
+    from .integrity import verify_package
+
+    before = verify_package(package_dir)
+    if not before["valid"]:
+        raise GgenCreateError(
+            "PACKAGE_INTEGRITY_REFUSED",
+            json.dumps(before, indent=2, sort_keys=True),
+        )
+
     metadata_path = package_dir / "ggen-create-package.json"
+    ontology_path = package_dir / "ontology.ttl"
+    receipt_path = package_dir / "receipt.json"
     if not metadata_path.is_file():
-        raise GgenCreateError("PACKAGE_METADATA_MISSING_REFUSED", str(metadata_path))
-    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    metadata["parameter"]["value"] = value
-    metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
-    (package_dir / "ontology.ttl").write_text(ontology_text(value), encoding="utf-8")
+        raise GgenCreateError(
+            "PACKAGE_METADATA_MISSING_REFUSED",
+            str(metadata_path),
+        )
+    metadata = _read_json_object(
+        metadata_path,
+        "PACKAGE_METADATA_PARSE_REFUSED",
+    )
+    parameter = metadata.get("parameter")
+    if not isinstance(parameter, dict) or not isinstance(parameter.get("seed"), str):
+        raise GgenCreateError(
+            "PACKAGE_METADATA_SCHEMA_REFUSED",
+            str(metadata_path),
+        )
+    generator = metadata.get("generator")
+    if not isinstance(generator, str) or not generator:
+        raise GgenCreateError(
+            "PACKAGE_METADATA_SCHEMA_REFUSED",
+            "generator is required",
+        )
+    old_receipt = _read_json_object(
+        receipt_path,
+        "PACKAGE_RECEIPT_INVALID_REFUSED",
+    )
+    parent = old_receipt.get("receipt_digest")
+    if not isinstance(parent, str):
+        parent = _file_hash(_canonical_json(old_receipt))
+
+    parameter["value"] = value
+    metadata_path.write_text(
+        json.dumps(metadata, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    ontology_path.write_text(ontology_text(value), encoding="utf-8")
+    receipt = _receipt_document(
+        _package_files(package_dir),
+        operation="parameter-rewrite",
+        generator=generator,
+        parameter_value=value,
+        parent=parent,
+    )
+    receipt_path.write_bytes(_receipt_bytes(receipt))
+
+    after = verify_package(package_dir)
+    if not after["valid"]:
+        raise GgenCreateError(
+            "PACKAGE_REWRITE_INTEGRITY_REFUSED",
+            json.dumps(after, indent=2, sort_keys=True),
+        )
+    return {
+        "package": str(package_dir),
+        "parameter_value": value,
+        "parent": parent,
+        "receipt_digest": receipt["receipt_digest"],
+        "integrity": after,
+    }
