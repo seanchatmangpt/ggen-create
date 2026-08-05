@@ -22,6 +22,9 @@ gc:AutonomicKnowledge a gc:CreateTimeObject ;
 gc:PackageIntegrityReport a gc:CreateTimeObject ;
     dcterms:description "A byte-exact comparison of a package against its package receipt." .
 
+gc:DoctorReport a gc:CreateTimeObject ;
+    dcterms:description "Evidence-backed runtime, package, ledger, task, and authority standing." .
+
 gc:Intent a gc:CreateTimeObject ;
     dcterms:description "Content-addressed proposed skill execution." .
 
@@ -47,6 +50,7 @@ gc:NativeReceipt a gc:Receipt ;
 # Runtime properties
 
 gc:requiresConfirmation a rdf:Property .
+gc:requiresSession a rdf:Property .
 gc:protocolVersion a rdf:Property .
 gc:transport a rdf:Property .
 gc:hashAlgorithm a rdf:Property .
@@ -61,90 +65,112 @@ gc:skill-capture-inspect a gc:Skill ;
     dcterms:title "capture.inspect" ;
     gc:authority gc:SELECT ;
     gc:requiresConfirmation false ;
+    gc:requiresSession true ;
     gc:mayActuate false .
 
 gc:skill-automatic-plan a gc:Skill ;
     dcterms:title "automatic.plan" ;
     gc:authority gc:CONSTRUCT ;
     gc:requiresConfirmation false ;
+    gc:requiresSession true ;
     gc:mayActuate false .
 
 gc:skill-package-build a gc:Skill ;
     dcterms:title "package.build" ;
     gc:authority gc:DO_INTENT ;
     gc:requiresConfirmation true ;
+    gc:requiresSession true ;
     gc:mayActuate false .
 
 gc:skill-package-verify a gc:Skill ;
     dcterms:title "package.verify" ;
     gc:authority gc:SELECT ;
     gc:requiresConfirmation false ;
+    gc:requiresSession true ;
     gc:mayActuate false .
 
 gc:skill-automatic-create a gc:Skill ;
     dcterms:title "automatic.create" ;
     gc:authority gc:DO_INTENT ;
     gc:requiresConfirmation true ;
+    gc:requiresSession true ;
     gc:mayActuate false .
 
 gc:skill-automatic-watch a gc:Skill ;
     dcterms:title "automatic.watch" ;
     gc:authority gc:DO_INTENT ;
     gc:requiresConfirmation true ;
+    gc:requiresSession true ;
     gc:mayActuate false .
 
 gc:skill-autonomic-cycle a gc:Skill ;
     dcterms:title "autonomic.cycle" ;
     gc:authority gc:DO_INTENT ;
     gc:requiresConfirmation true ;
+    gc:requiresSession true ;
     gc:mayActuate false .
 
 gc:skill-autonomic-run a gc:Skill ;
     dcterms:title "autonomic.run" ;
     gc:authority gc:DO_INTENT ;
     gc:requiresConfirmation true ;
+    gc:requiresSession true ;
     gc:mayActuate false .
 
 gc:skill-parity-verify a gc:Skill ;
     dcterms:title "parity.verify" ;
     gc:authority gc:DO_INTENT ;
     gc:requiresConfirmation true ;
+    gc:requiresSession true ;
     gc:mayActuate false .
 
 gc:skill-selfplay-run a gc:Skill ;
     dcterms:title "selfplay.run" ;
     gc:authority gc:DO_INTENT ;
     gc:requiresConfirmation true ;
+    gc:requiresSession true ;
     gc:mayActuate false .
 
 gc:skill-receipt-verify a gc:Skill ;
     dcterms:title "receipt.verify" ;
     gc:authority gc:SELECT ;
     gc:requiresConfirmation false ;
+    gc:requiresSession false ;
     gc:mayActuate false .
 
 gc:skill-receipt-chain-verify a gc:Skill ;
     dcterms:title "receipt.chain.verify" ;
     gc:authority gc:SELECT ;
     gc:requiresConfirmation false ;
+    gc:requiresSession false ;
+    gc:mayActuate false .
+
+gc:skill-doctor-inspect a gc:Skill ;
+    dcterms:title "doctor.inspect" ;
+    gc:authority gc:SELECT ;
+    gc:requiresConfirmation false ;
+    gc:requiresSession false ;
     gc:mayActuate false .
 
 gc:skill-skills-list a gc:Skill ;
     dcterms:title "skills.list" ;
     gc:authority gc:SELECT ;
     gc:requiresConfirmation false ;
+    gc:requiresSession false ;
     gc:mayActuate false .
 
 gc:skill-agents-list a gc:Skill ;
     dcterms:title "agents.list" ;
     gc:authority gc:SELECT ;
     gc:requiresConfirmation false ;
+    gc:requiresSession false ;
     gc:mayActuate false .
 
 gc:skill-agents-route a gc:Skill ;
     dcterms:title "agents.route" ;
     gc:authority gc:SELECT ;
     gc:requiresConfirmation false ;
+    gc:requiresSession false ;
     gc:mayActuate false .
 
 # Bounded agents and exact skill allowlists.
@@ -187,7 +213,7 @@ gc:agent-topology-architect a gc:AgentRole ;
 
 gc:agent-admission-referee a gc:AgentRole ;
     dcterms:title "admission-referee" ;
-    gc:allowedSkill gc:skill-capture-inspect, gc:skill-automatic-plan, gc:skill-package-verify, gc:skill-receipt-verify, gc:skill-receipt-chain-verify ;
+    gc:allowedSkill gc:skill-capture-inspect, gc:skill-automatic-plan, gc:skill-package-verify, gc:skill-receipt-verify, gc:skill-receipt-chain-verify, gc:skill-doctor-inspect ;
     gc:handoffTarget gc:agent-adversarial-verifier ;
     gc:mayActuate false .
 
@@ -199,5 +225,5 @@ gc:agent-adversarial-verifier a gc:AgentRole ;
 
 gc:agent-certifier a gc:AgentRole ;
     dcterms:title "certifier" ;
-    gc:allowedSkill gc:skill-package-verify, gc:skill-receipt-verify, gc:skill-receipt-chain-verify, gc:skill-skills-list, gc:skill-agents-list ;
+    gc:allowedSkill gc:skill-package-verify, gc:skill-receipt-verify, gc:skill-receipt-chain-verify, gc:skill-doctor-inspect, gc:skill-skills-list, gc:skill-agents-list ;
     gc:mayActuate false .
