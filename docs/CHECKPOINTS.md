@@ -1,253 +1,69 @@
-# Checkpoint Ladders
+# Checkpoints
 
-`ggen-create` has two independent checkpoint sets.
+## Ladder A — `hygen-create` parity
 
-A later ggen-native checkpoint cannot retroactively substitute for missing parity evidence.
-
-# A. Original-parity ladder
-
-## P0 — Reference identity
-
-Bind:
-
-- exact `ronp001/hygen-create` commit;
-- exact Hygen commit/version;
-- Node/npm toolchain;
-- reference fixture corpus;
-- commands and environment.
-
-Standing:
+The parity rail is deterministic and agent-free.
 
 ```text
-ORIGINAL_REFERENCE_ADMITTED
+P0  reference implementation and toolchain identity
+P1  capture/session boundary
+P2  lexical case-family transformation
+P3  mechanical inspection
+P4  exact exemplar reconstruction through real ggen
+P5  changed-parameter variation and behavior
+P6  unchanged no-op plus changed revision archive
+P7  byte-exact original-reference crown
 ```
 
-## P1 — Capture parity
+A package render without real execution cannot pass P4. A changed-name render without behavioral consequence cannot pass P5. P7 requires an independently manufactured original Hygen artifact.
 
-Prove equivalent ability to:
+## Ladder B — ggen-native runtime
 
-- initialize a capture;
-- include files explicitly;
-- fence the capture root;
-- refuse missing/out-of-root paths;
-- preserve session state;
-- record a parameter seed.
+The native rail begins above the parity substrate.
 
-## P2 — Transformation parity
+### N0 — Automatic plan
 
-For the parity corpus, prove recognition of:
+Proves that the capture can produce a reversible, content-addressed plan without writes.
+
+### N1 — Automatic consequence
+
+Proves that a confirmed plan manufactures a deterministic package, records the exemplar fingerprint, and emits a valid receipt.
+
+### N2 — Autonomic convergence
+
+Proves a bounded MAPE-K controller reaches stability or a typed terminal block within its cycle ceiling.
+
+### N3 — Skill authority closure
+
+Every skill declares identity, authority, input/output classes, verifier, refusals, confirmation policy, and `mayActuate=false`.
+
+### N4 — Agent topology closure
+
+Every agent declares allowed skills and handoffs. Unauthorized agent-skill combinations are mechanically refused. Agents have no ambient DO authority.
+
+### N5 — MCP consequence
+
+Proves MCP `2025-11-25` lifecycle, tools, resources, prompts, durable tasks, confirmation refusal, confirmed consequence, and receipt visibility.
+
+### N6 — A2A consequence
+
+Proves A2A `1.0` Agent Card discovery, deterministic routing, durable task consequence, task retrieval/cancellation law, and loopback transport refusal.
+
+### N7 — Adversarial self-play
+
+Challenges ambient authority, missing confirmation, unauthorized routing, receipt integrity, automatic manufacture, and autonomic convergence.
+
+### N8 — Receipt verification
+
+Recomputes the canonical receipt digest and binds operation, subject, input, output, state, and optional parent receipt.
+
+## Claim ceilings
 
 ```text
-UPPERCASE
-lowercase
-Capitalized
-CamelCase
-lowerCamelCase
-underscore_case
-UPPER_UNDERSCORE_CASE
-dash-case
-Title Case
+protocol parse             ≠ protocol consequence
+Agent Card                 ≠ executed agent topology
+queued workflow            ≠ evidence
+successful package build   ≠ real ggen reconstruction
+MCP/A2A availability       ≠ production network security
+native self-play           ≠ arbitrary repository synthesis
 ```
-
-Path and content transforms must agree.
-
-## P3 — Inspection parity
-
-Expose at least:
-
-- included paths;
-- source occurrence;
-- proposed parameter;
-- proposed transform;
-- before/after text;
-- target path;
-- collision;
-- ambiguity;
-- unsupported content.
-
-Formatting need not match the original; observable information must be equivalent or stronger.
-
-## P4 — Exact reconstruction
-
-Run:
-
-```text
-ggen-create package
-→ public ggen execution
-→ empty staging tree
-```
-
-with the original parameter assignment.
-
-Compare complete artifact trees.
-
-Pass state:
-
-```text
-RECONSTRUCTION_ALIVE
-```
-
-This is not yet generalization.
-
-## P5 — Variation parity
-
-Run a non-original assignment through both rails:
-
-```text
-hygen-create → Hygen
-ggen-create  → ggen
-```
-
-Canonical fixture:
-
-```text
-Hello → Hola
-```
-
-Compare paths, content, and behavior.
-
-## P6 — Iterative revision parity
-
-Prove:
-
-```text
-exemplar
-→ generator v1
-→ generated exemplar
-→ modification
-→ generator v2
-→ revised output
-```
-
-Generator revisions must have immutable identity and no silent overwrite.
-
-## P7 — Parity crown
-
-Receipt binds:
-
-- all exact subjects;
-- reference and ggen-create package identities;
-- commands and exits;
-- tree manifests;
-- equivalence policy;
-- behavioral assertions;
-- intentional divergences;
-- replay result.
-
-Crown:
-
-```text
-HYGEN_CREATE_PARITY_ALIVE
-```
-
-# B. ggen-native ladder
-
-Begins only after P7.
-
-## G0 — Canonical graph creation
-
-The manufacturing system exists as RDF authority rather than only templates and configuration.
-
-## G1 — SHACL and authority admission
-
-Prove:
-
-- complete parameter domains;
-- unique output ownership;
-- bounded paths;
-- declared transforms;
-- deterministic queries;
-- explicit unsupported regions;
-- no ambient actuation authority.
-
-## G2 — Native ggen package
-
-Manufacture and execute through public ggen boundaries:
-
-```text
-ontology
-queries
-templates
-manifest
-shapes
-fixtures
-verification obligations
-```
-
-## G3 — Skill admission
-
-A skill is admitted only when it binds:
-
-```text
-identity
-trigger
-inputs
-outputs
-authority
-evidence
-verifier
-refusals
-replay
-```
-
-A `SKILL.md` file alone has no crown.
-
-## G4 — Agent admission
-
-An agent boundary requires evidence of distinct:
-
-- authority;
-- input domain;
-- verifier;
-- failure boundary;
-- file ownership;
-- replayable handoff.
-
-Agents manufacture candidate objects and intents only.
-
-## G5 — Held-out self-play
-
-Challenge the package with unseen subjects and negative fixtures.
-
-Required classes include:
-
-- unseen names;
-- casing collisions;
-- optional branches;
-- empty collections;
-- conflicting outputs;
-- unsupported languages;
-- malformed ontology;
-- dishonest triggers;
-- unauthorized handoffs.
-
-## G6 — Self-hosting
-
-```text
-ggen-create source
-→ inferred ggen-create package
-→ admitted package
-→ ggen constructs ggen-create
-→ validation
-→ replay match
-```
-
-## G7 — Native crown
-
-Receipt DAG binds source, graph, package, skills, agents, held-out runs, and replay.
-
-Crown:
-
-```text
-GGEN_CREATE_PACKAGE_ALIVE
-```
-
-# Checkpoint state rules
-
-- inspection does not satisfy execution;
-- package construction does not satisfy target behavior;
-- reconstruction does not satisfy generalization;
-- one successful agent route does not admit the topology;
-- CI metadata without exact-head logs is not execution evidence;
-- unsupported content must remain visible;
-- typed refusal is a valid result and must not be collapsed into failure or truth.
