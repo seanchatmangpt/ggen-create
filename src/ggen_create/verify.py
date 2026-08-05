@@ -266,6 +266,9 @@ def verify_parity(
     seed = session["templatize_using_name"]
     if not seed:
         raise GgenCreateError("PARAMETER_NOT_SEEDED_REFUSED", "missing seed")
+    # Identifier admission must occur before resolving, deleting, or creating
+    # the verifier output directory.
+    values_for(variation_value)
     sync_args = sync_args or ["sync", "run"]
 
     output_root = output_root.resolve()
