@@ -3,4 +3,4 @@
 from .model import APP_VERSION, SESSION_FILE, GgenCreateError
 
 __all__ = ["APP_VERSION", "SESSION_FILE", "GgenCreateError"]
-__version__ = "0.3.0"
+__version__ = APP_VERSION
