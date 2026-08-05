@@ -20,7 +20,7 @@ ggen sync run
 artifacts + receipts
 ```
 
-`ggen-create` is create-time. `ggen` is construct-time. Native skills and agents manufacture candidate graphs and intents; the Broker is the exclusive confirmed native DO boundary. Original-compatible capture commands remain a deliberately fenced compatibility surface.
+`ggen-create` is create-time. `ggen` is construct-time. Skills and agents manufacture candidate graphs and intents; the Broker is the exclusive confirmed native DO boundary.
 
 ## Install
 
@@ -31,7 +31,7 @@ ggen-create-mcp --help
 ggen-create-a2a --help
 ```
 
-The installed runtime has no third-party Python runtime dependencies and supports Python 3.11+.
+The runtime is dependency-free on Python 3.11+.
 
 ## Original-compatible parity
 
@@ -50,7 +50,7 @@ start rename add remove/rm usename setopt
 status/s generate/g abort verify compare
 ```
 
-The parity rail executes P0–P7: reference identity, bounded capture, lexical transformations, inspection, exact reconstruction, changed-parameter variation, revision behavior, and byte-exact original-reference comparison.
+The parity rail executes P0–P7: reference identity, bounded capture, lexical transformations, inspection, exact reconstruction, changed-parameter variation, revision behavior, and original-reference comparison. Ordinary artifacts are byte-exact. The original `hygen-create.json` and current `ggen-create.json` control manifests are compared through one explicit semantic normalization policy covering only the root filename alias, its self-entry, and capture-tool version identity.
 
 ## Automatic mode
 
@@ -96,7 +96,7 @@ ggen-create agents route "manufacture package"
 ggen-create selfplay run --confirm
 ```
 
-Fifteen canonical skills and nine bounded agents are implemented. Every skill and agent declares `mayActuate=false`. Native write skills require explicit confirmation and cross the Broker boundary. Confirmed failures receive typed failure receipts as well as successful consequences.
+Sixteen canonical skills and nine bounded agents are implemented. Every skill and agent declares `mayActuate=false`. Each skill also declares whether it requires a capture session. Root-global inspection, routing, doctor, and ledger operations work without a capture; capture-bound operations refuse with typed session errors. Native write skills require explicit confirmation and cross the Broker boundary. Confirmed failures receive typed failure receipts as well as successful consequences.
 
 ## MCP
 
@@ -116,7 +116,8 @@ Profile:
 - negotiated task-augmented execution with TTL and polling metadata;
 - related-task metadata on terminal results;
 - schema validation and explicit confirmation on every write tool;
-- package-integrity, automatic-watch, autonomic-cycle, receipt-chain, and doctor projections.
+- package-integrity, automatic-watch, autonomic-cycle, receipt-chain, and doctor projections;
+- session-independent doctor, routing, and ledger tools on empty subject roots.
 
 See [`docs/MCP.md`](docs/MCP.md).
 
@@ -137,6 +138,7 @@ Profile:
 - `INPUT_REQUIRED` interruption followed by same-task continuation;
 - deterministic routing into the complete canonical skill/agent graph;
 - terminal task failure containment;
+- session-independent global skills on empty subject roots;
 - loopback-only unauthenticated built-in HTTP transport with bounded request bodies.
 
 See [`docs/A2A.md`](docs/A2A.md).
@@ -195,23 +197,29 @@ python -m compileall -q src tests
 python -m unittest discover -s tests -v
 ```
 
-GitHub Actions additionally performs SHACL validation, checks exact ontology-to-code skill and agent closure, validates emitted task and receipt instances against JSON Schema, executes the native protocol rail, and runs the pinned real-ggen/original-hygen parity crown.
+GitHub Actions independently executes:
+
+- the native CLI/protocol/SHACL/schema rail;
+- the pinned real-ggen/original-hygen P7 crown.
 
 ## Current standing
 
 ```text
-architecture and authority corpus:  ADMITTED
-runtime implementation:             IMPLEMENTED
-native semantic tests:              EXACT-HEAD CI GATE
-MCP 2025-11-25 execution:            EXACT-HEAD CI GATE
-A2A 1.0 execution:                   EXACT-HEAD CI GATE
-P7 real-ggen/original crown:         EXACT-HEAD CI GATE
-production network deployment:      UNKNOWN
-multi-parameter structural roadmap: NOT IMPLEMENTED
-self-hosting crown:                  NOT EXECUTED
+architecture and authority:          ADMITTED
+deterministic parity implementation: IMPLEMENTED; exact-head crown required
+automatic runtime:                   IMPLEMENTED; exact-head native run required
+autonomic runtime:                   IMPLEMENTED; exact-head native run required
+skill and agent authority:           IMPLEMENTED; ontology/code closure gate
+MCP 2025-11-25 profile:              IMPLEMENTED; exact-head native run required
+A2A 1.0 profile:                     IMPLEMENTED; exact-head native run required
+adversarial self-play:               IMPLEMENTED; exact-head native run required
+receipt graph and evidence doctor:   IMPLEMENTED; exact-head native run required
+production network deployment:       UNKNOWN
+multi-parameter structural synthesis: ROADMAP
+self-hosting crown:                   NOT EXECUTED
 ```
 
-Queued or pending workflow metadata is not execution evidence.
+Inspection, queued workflows, generated files, and implementation claims are not execution evidence.
 
 ## Canonical authority
 
