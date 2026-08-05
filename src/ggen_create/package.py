@@ -8,7 +8,12 @@ import shutil
 import tempfile
 from typing import Any
 
-from .cases import parameterize_body, parameterize_path, values_for
+from .cases import (
+    parameterize_body,
+    parameterize_path,
+    render_concrete,
+    values_for,
+)
 from .model import BuildResult, GgenCreateError, validate_identifier
 from .session import admitted_files, load_session
 
@@ -126,6 +131,24 @@ def _receipt_bytes(receipt: dict[str, Any]) -> bytes:
     return json.dumps(receipt, indent=2, sort_keys=True).encode("utf-8")
 
 
+def _admit_target(
+    seen: dict[str, str],
+    target: str,
+    source: str,
+    *,
+    code: str,
+) -> None:
+    key = target.casefold()
+    previous = seen.get(key)
+    if previous is not None and previous != source:
+        raise GgenCreateError(
+            code,
+            f"{source!r} and {previous!r} both project to {target!r} "
+            "under case-insensitive path comparison",
+        )
+    seen[key] = source
+
+
 def _planned_files(session_path: Path) -> dict[str, bytes]:
     session = load_session(session_path)
     seed = session["templatize_using_name"]
@@ -135,7 +158,7 @@ def _planned_files(session_path: Path) -> dict[str, bytes]:
             "run 'ggen-create usename <value>'",
         )
     root = session_path.parent
-    files = admitted_files(session_path)
+    files = sorted(admitted_files(session_path))
     query = sparql_query()
     planned: dict[str, bytes] = {}
     # This is intentionally the frontmatter schema only. A project version is
@@ -151,11 +174,27 @@ def _planned_files(session_path: Path) -> dict[str, bytes]:
     planned["ontology.ttl"] = ontology_text(seed).encode("utf-8")
 
     template_manifest: list[dict[str, Any]] = []
+    template_targets: dict[str, str] = {}
+    seed_targets: dict[str, str] = {}
     for index, rel in enumerate(files):
         source = (root / rel).read_text(encoding="utf-8")
         target, path_replacements = parameterize_path(rel, seed)
+        concrete_target, _ = render_concrete(rel, seed, seed)
         if session["gen_parent_dir"]:
             target = "{{ row.name }}/" + target
+            concrete_target = seed + "/" + concrete_target
+        _admit_target(
+            template_targets,
+            target,
+            rel,
+            code="TARGET_TEMPLATE_COLLISION_REFUSED",
+        )
+        _admit_target(
+            seed_targets,
+            concrete_target,
+            rel,
+            code="TARGET_COLLISION_REFUSED",
+        )
         body, body_replacements = parameterize_body(source, seed)
         query_indented = "\n".join("    " + line for line in query.splitlines())
         template = (
