@@ -330,7 +330,7 @@ values = values_for(value)
 def render(text):
     for key, replacement in values.items():
         text = text.replace('{{ row.' + key + ' }}', replacement)
-    return text
+    return text.replace('{% raw %}', '').replace('{% endraw %}', '')
 
 for item in meta['files']:
     template = (root / item['template']).read_text()
