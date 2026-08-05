@@ -341,7 +341,7 @@ class NativeTests(unittest.TestCase):
                 }
             )
             assert tools is not None
-            self.assertGreaterEqual(len(tools["result"]["tools"]), 9)
+            self.assertGreaterEqual(len(tools["result"]["tools"]), 14)
             resources = server.handle(
                 {
                     "jsonrpc": "2.0",
@@ -351,7 +351,7 @@ class NativeTests(unittest.TestCase):
                 }
             )
             assert resources is not None
-            self.assertEqual(len(resources["result"]["resources"]), 4)
+            self.assertEqual(len(resources["result"]["resources"]), 6)
             invalid = server.handle(
                 {
                     "jsonrpc": "2.0",
