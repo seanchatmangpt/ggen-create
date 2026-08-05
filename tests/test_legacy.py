@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -13,6 +15,8 @@ from ggen_create.legacy import (
 )
 from ggen_create.model import GgenCreateError
 from ggen_create.skills import Broker, SkillRegistry
+
+PRODUCER_COMMIT = "2d2b4aecc392a124e4fbeef0d1eb4b9b2642b3be"
 
 
 class LegacyTests(unittest.TestCase):
@@ -44,6 +48,14 @@ class LegacyTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def build(self, root: Path, output: Path, **kwargs: object):
+        return build_legacy_bundle(
+            root,
+            output,
+            producer_commit=PRODUCER_COMMIT,
+            **kwargs,
+        )
+
     def test_plan_is_deterministic_and_classified(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -51,6 +63,7 @@ class LegacyTests(unittest.TestCase):
             arguments = {
                 "output_root": root / "foundry/generated/intake",
                 "program_id": "Fortune 5 Retail",
+                "producer_commit": PRODUCER_COMMIT,
             }
             first = plan_legacy_factory(root, **arguments)
             second = plan_legacy_factory(root, **arguments)
@@ -60,26 +73,20 @@ class LegacyTests(unittest.TestCase):
             self.assertEqual(first["classification_counts"]["source"], 1)
             self.assertEqual(first["classification_counts"]["test"], 1)
             self.assertEqual(first["blockers"], [])
+            self.assertEqual(first["producer_identity"]["commit"], PRODUCER_COMMIT)
 
     def test_power_is_receipted_verified_and_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             self.fixture(root)
             output = root / "foundry/generated/intake"
-            first = build_legacy_bundle(
-                root,
-                output,
-                program_id="retail-orders",
-            )
+            first = self.build(root, output, program_id="retail-orders")
             self.assertTrue(first.changed)
-            self.assertTrue(
-                verify_legacy_bundle(output, subject_root=root)["valid"]
-            )
-            second = build_legacy_bundle(
-                root,
-                output,
-                program_id="retail-orders",
-            )
+            self.assertTrue(verify_legacy_bundle(output, subject_root=root)["valid"])
+            receipt = json.loads((output / "receipt.json").read_text())
+            self.assertEqual(receipt["producer_identity"]["commit"], PRODUCER_COMMIT)
+            self.assertEqual(set(receipt["outputs"]), set(receipt["output_modes"]))
+            second = self.build(root, output, program_id="retail-orders")
             self.assertFalse(second.changed)
             self.assertEqual(first.bundle_digest, second.bundle_digest)
             verify = subprocess.run(
@@ -107,12 +114,12 @@ class LegacyTests(unittest.TestCase):
             )
             self.assertEqual(replay.returncode, 0, replay.stderr + replay.stdout)
 
-    def test_drift_is_build_broken(self) -> None:
+    def test_content_drift_is_build_broken(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             self.fixture(root)
             output = root / "intake"
-            build_legacy_bundle(root, output)
+            self.build(root, output)
             (root / "src" / "pricing.py").write_text(
                 "def price(qty): return qty * 8\n",
                 encoding="utf-8",
@@ -120,7 +127,53 @@ class LegacyTests(unittest.TestCase):
             report = verify_legacy_bundle(output, subject_root=root)
             self.assertFalse(report["valid"])
             self.assertEqual(report["state"], "BUILD_BROKEN")
-            self.assertEqual(report["drift"][0]["reason"], "digest")
+            self.assertIn(
+                {"path": "src/pricing.py", "reason": "digest"},
+                report["drift"],
+            )
+
+    def test_unadmitted_file_is_build_broken(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.fixture(root)
+            output = root / "intake"
+            self.build(root, output)
+            (root / "src" / "ambient.py").write_text("pass\n", encoding="utf-8")
+            report = verify_legacy_bundle(output, subject_root=root)
+            self.assertFalse(report["valid"])
+            self.assertIn(
+                {"path": "src/ambient.py", "reason": "unadmitted"},
+                report["drift"],
+            )
+
+    @unittest.skipIf(os.name == "nt", "POSIX mode semantics")
+    def test_source_mode_drift_is_build_broken(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.fixture(root)
+            source = root / "src" / "pricing.py"
+            source.chmod(0o644)
+            output = root / "intake"
+            self.build(root, output)
+            source.chmod(0o755)
+            report = verify_legacy_bundle(output, subject_root=root)
+            self.assertFalse(report["valid"])
+            self.assertIn(
+                {"path": "src/pricing.py", "reason": "mode"},
+                report["drift"],
+            )
+
+    @unittest.skipIf(os.name == "nt", "POSIX mode semantics")
+    def test_output_mode_tamper_is_build_broken(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.fixture(root)
+            output = root / "intake"
+            self.build(root, output)
+            (output / "verify_bundle.py").chmod(0o644)
+            report = verify_legacy_bundle(output, subject_root=root)
+            self.assertFalse(report["valid"])
+            self.assertFalse(report["checks"]["output_modes"])
 
     def test_existing_different_output_requires_force(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -130,12 +183,9 @@ class LegacyTests(unittest.TestCase):
             output.mkdir()
             (output / "foreign").write_text("x", encoding="utf-8")
             with self.assertRaises(GgenCreateError) as caught:
-                build_legacy_bundle(root, output)
-            self.assertEqual(
-                caught.exception.code,
-                "LEGACY_OUTPUT_EXISTS_REFUSED",
-            )
-            self.assertTrue(build_legacy_bundle(root, output, force=True).changed)
+                self.build(root, output)
+            self.assertEqual(caught.exception.code, "LEGACY_OUTPUT_EXISTS_REFUSED")
+            self.assertTrue(self.build(root, output, force=True).changed)
 
     def test_symlink_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as raw, tempfile.TemporaryDirectory() as outside:
@@ -147,10 +197,17 @@ class LegacyTests(unittest.TestCase):
                 self.skipTest("symlink unavailable")
             with self.assertRaises(GgenCreateError) as caught:
                 plan_legacy_factory(root)
-            self.assertEqual(
-                caught.exception.code,
-                "SYMLINK_DIRECTORY_REFUSED",
-            )
+            self.assertEqual(caught.exception.code, "SYMLINK_DIRECTORY_REFUSED")
+
+    @unittest.skipIf(os.name == "nt" or not hasattr(os, "mkfifo"), "FIFO unavailable")
+    def test_special_file_is_refused_without_reading(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.fixture(root)
+            os.mkfifo(root / "events.pipe")
+            with self.assertRaises(GgenCreateError) as caught:
+                plan_legacy_factory(root)
+            self.assertEqual(caught.exception.code, "SPECIAL_FILE_REFUSED")
 
     def test_bounds_are_typed(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -183,9 +240,7 @@ class LegacyTests(unittest.TestCase):
             result = broker.execute(intent, confirm=True)
             self.assertEqual(result["state"], "PARTIAL_ALIVE")
             self.assertTrue(Path(result["result"]["receipt"]).is_file())
-            self.assertTrue(
-                result["receipt"]["receipt_digest"].startswith("sha256:")
-            )
+            self.assertTrue(result["receipt"]["receipt_digest"].startswith("sha256:"))
             verified = broker.execute(
                 registry.plan(
                     "legacy.verify",
