@@ -1,0 +1,84 @@
+@prefix gcreate: <https://ggen.io/ontology/create#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+gcreate:ObservedPathShape
+    a sh:NodeShape ;
+    sh:targetClass gcreate:ObservedPath ;
+    sh:property [
+        sh:path gcreate:relativePath ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string
+    ] ;
+    sh:property [
+        sh:path gcreate:contentHash ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string
+    ] .
+
+gcreate:SkillShape
+    a sh:NodeShape ;
+    sh:targetClass gcreate:Skill ;
+    sh:property [
+        sh:path gcreate:authority ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path gcreate:accepts ;
+        sh:minCount 1
+    ] ;
+    sh:property [
+        sh:path gcreate:produces ;
+        sh:minCount 1
+    ] ;
+    sh:property [
+        sh:path gcreate:mayActuate ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:hasValue false
+    ] .
+
+gcreate:AgentRoleShape
+    a sh:NodeShape ;
+    sh:targetClass gcreate:AgentRole ;
+    sh:property [
+        sh:path gcreate:authority ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path gcreate:mayActuate ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:hasValue false
+    ] .
+
+gcreate:ProjectionShape
+    a sh:NodeShape ;
+    sh:targetClass gcreate:Projection ;
+    sh:property [
+        sh:path gcreate:outputPath ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string
+    ] ;
+    sh:property [
+        sh:path gcreate:verifiedBy ;
+        sh:minCount 1
+    ] .
+
+gcreate:ReceiptShape
+    a sh:NodeShape ;
+    sh:targetClass gcreate:CheckpointReceipt ;
+    sh:property [
+        sh:path gcreate:proves ;
+        sh:minCount 1
+    ] ;
+    sh:property [
+        sh:path gcreate:standing ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] .

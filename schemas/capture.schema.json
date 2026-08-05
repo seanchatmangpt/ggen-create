@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ggen.io/schemas/ggen-create/capture.schema.json",
+  "title": "ggen-create capture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "subject", "policy", "include", "parameter_hypotheses"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "0.1"
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "root"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tree_hash": {
+          "type": ["string", "null"],
+          "pattern": "^blake3:[0-9a-f]+$"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["symlinks", "binary_files", "outside_root"],
+      "properties": {
+        "symlinks": {
+          "enum": ["refuse", "record-no-follow"]
+        },
+        "binary_files": {
+          "enum": ["refuse", "opaque-copy", "exclude"]
+        },
+        "outside_root": {
+          "const": "refuse"
+        }
+      }
+    },
+    "include": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "content_hash": {
+            "type": ["string", "null"],
+            "pattern": "^blake3:[0-9a-f]+$"
+          },
+          "standing": {
+            "enum": ["candidate", "admitted", "refused", "unsupported"]
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "parameter_hypotheses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "seed", "standing"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "seed": {
+            "type": "string",
+            "minLength": 1
+          },
+          "standing": {
+            "enum": ["candidate", "admitted", "refused"]
+          }
+        }
+      }
+    }
+  }
+}

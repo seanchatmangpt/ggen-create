@@ -1,0 +1,119 @@
+@prefix gcreate: <https://ggen.io/ontology/create#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+gcreate:CaptureSession a rdfs:Class ;
+    rdfs:subClassOf prov:Activity .
+
+gcreate:ExemplarArtifact a rdfs:Class ;
+    rdfs:subClassOf prov:Entity .
+
+gcreate:ObservedPath a rdfs:Class ;
+    rdfs:subClassOf prov:Entity .
+
+gcreate:SymbolOccurrence a rdfs:Class .
+gcreate:ParameterCandidate a rdfs:Class .
+gcreate:Parameter a rdfs:Class .
+gcreate:Transform a rdfs:Class .
+gcreate:VariationAxis a rdfs:Class .
+gcreate:Projection a rdfs:Class .
+gcreate:GeneratorPlan a rdfs:Class .
+gcreate:Skill a rdfs:Class .
+gcreate:AgentRole a rdfs:Class .
+gcreate:VerificationObligation a rdfs:Class .
+gcreate:CheckpointReceipt a rdfs:Class ;
+    rdfs:subClassOf prov:Entity .
+gcreate:AdmissionDecision a rdfs:Class .
+
+gcreate:Standing a rdfs:Class .
+gcreate:UNKNOWN a gcreate:Standing .
+gcreate:PARTIAL_ALIVE a gcreate:Standing .
+gcreate:ALIVE a gcreate:Standing .
+gcreate:BLOCKED a gcreate:Standing .
+gcreate:BUILD_BROKEN a gcreate:Standing .
+gcreate:UNSUPPORTED a gcreate:Standing .
+gcreate:REFUSED a gcreate:Standing .
+
+gcreate:Authority a rdfs:Class .
+gcreate:InspectOnly a gcreate:Authority .
+gcreate:SelectOnly a gcreate:Authority .
+gcreate:ConstructOnly a gcreate:Authority .
+gcreate:BRCEActuation a gcreate:Authority .
+
+gcreate:includes a rdf:Property ;
+    rdfs:domain gcreate:CaptureSession ;
+    rdfs:range gcreate:ObservedPath .
+
+gcreate:containsOccurrence a rdf:Property ;
+    rdfs:domain gcreate:ObservedPath ;
+    rdfs:range gcreate:SymbolOccurrence .
+
+gcreate:supportsCandidate a rdf:Property ;
+    rdfs:domain gcreate:SymbolOccurrence ;
+    rdfs:range gcreate:ParameterCandidate .
+
+gcreate:transformedBy a rdf:Property ;
+    rdfs:range gcreate:Transform .
+
+gcreate:guards a rdf:Property ;
+    rdfs:domain gcreate:VariationAxis ;
+    rdfs:range gcreate:Projection .
+
+gcreate:containsProjection a rdf:Property ;
+    rdfs:domain gcreate:GeneratorPlan ;
+    rdfs:range gcreate:Projection .
+
+gcreate:accepts a rdf:Property .
+gcreate:produces a rdf:Property .
+gcreate:usesSkill a rdf:Property ;
+    rdfs:domain gcreate:AgentRole ;
+    rdfs:range gcreate:Skill .
+gcreate:handoffTo a rdf:Property ;
+    rdfs:domain gcreate:AgentRole ;
+    rdfs:range gcreate:AgentRole .
+
+gcreate:verifiedBy a rdf:Property ;
+    rdfs:range gcreate:VerificationObligation .
+
+gcreate:proves a rdf:Property ;
+    rdfs:domain gcreate:CheckpointReceipt .
+
+gcreate:standing a rdf:Property ;
+    rdfs:range gcreate:Standing .
+
+gcreate:authority a rdf:Property ;
+    rdfs:range gcreate:Authority .
+
+gcreate:mayActuate a rdf:Property ;
+    rdfs:range xsd:boolean .
+
+gcreate:contentHash a rdf:Property ;
+    rdfs:range xsd:string .
+
+gcreate:relativePath a rdf:Property ;
+    rdfs:range xsd:string .
+
+gcreate:outputPath a rdf:Property ;
+    rdfs:range xsd:string .
+
+gcreate:trigger a rdf:Property .
+gcreate:refusalCode a rdf:Property ;
+    rdfs:range xsd:string .
+gcreate:claimCeiling a rdf:Property ;
+    rdfs:range xsd:string .
+
+gcreate:LexicalAntiUnifySkill a gcreate:Skill ;
+    dcterms:title "Lexical anti-unification" ;
+    gcreate:authority gcreate:ConstructOnly ;
+    gcreate:accepts gcreate:ExemplarArtifact ;
+    gcreate:produces gcreate:ParameterCandidate ;
+    gcreate:mayActuate false .
+
+gcreate:AdmissionReferee a gcreate:AgentRole ;
+    dcterms:title "Admission referee" ;
+    gcreate:authority gcreate:SelectOnly ;
+    gcreate:mayActuate false .
