@@ -13,10 +13,10 @@ The board-level risk is not “old code.” It is that no one can bind each repl
 `ggen-create` is placed before `ggen-legacy` as the create-side compiler.
 
 1. **Preserve:** point at an exact read-only predecessor tree.
-2. **Fence:** refuse symlinks, escaped paths, unbounded trees, and implicit actuation.
-3. **Observe:** hash and classify every admitted artifact.
+2. **Fence:** refuse symlinks, special files, escaped paths, unbounded trees, and implicit actuation.
+3. **Observe:** hash and classify every admitted artifact, including size and executable mode.
 4. **Construct:** emit a deterministic manifest, RDF model, and receiving contract.
-5. **DO through BRCE:** manufacture the bundle only after explicit confirmation; emit a receipt over every output byte.
+5. **DO through BRCE:** manufacture only after explicit confirmation; receipt-bind every output byte, output mode, admitted subject, and producer commit.
 6. **Hand off:** `ggen` receives authority to manufacture candidate projections; `ggen-legacy` owns independent equivalence, replay, release, and sunset decisions.
 
 ## Operating model
@@ -36,7 +36,7 @@ The synthetic estate has six business-critical surfaces:
 
 ## Manufactured consequence
 
-For an admitted predecessor SHA, `legacy.power` produces one content-addressed receiving bundle. Re-running against unchanged input is byte-stable and returns `changed=false`. Any predecessor drift causes replay to become `BUILD_BROKEN`. A foreign output directory is `REFUSED(LEGACY_OUTPUT_EXISTS_REFUSED)` unless the operator explicitly authorizes replacement.
+For an admitted predecessor SHA, `legacy.power` produces one content-addressed receiving bundle. Re-running against unchanged input is byte-stable and returns `changed=false`. Any content, mode, deletion, or unadmitted-file drift causes replay to become `BUILD_BROKEN`. A foreign output directory is `REFUSED(LEGACY_OUTPUT_EXISTS_REFUSED)` unless the operator explicitly authorizes replacement.
 
 The bundle makes parallel modernization lawful. Teams may construct candidate templates and verifiers for pricing, allocation, store continuity, or returns without granting any candidate ambient execution authority. One failed workstream remains topology, not total-program failure.
 
