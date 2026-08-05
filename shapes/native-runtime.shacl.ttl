@@ -4,20 +4,57 @@
 
 gc:NativeSkillShape a sh:NodeShape ;
     sh:targetClass gc:Skill ;
-    sh:property [ sh:path gc:authority ; sh:minCount 1 ; sh:maxCount 1 ] ;
-    sh:property [ sh:path gc:requiresConfirmation ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:boolean ] ;
-    sh:property [ sh:path gc:mayActuate ; sh:minCount 1 ; sh:maxCount 1 ; sh:hasValue false ; sh:message "Skills may manufacture intents but may not actuate." ] .
+    sh:property [
+        sh:path gc:authority ;
+        sh:minCount 1 ;
+        sh:maxCount 1
+    ] ;
+    sh:property [
+        sh:path gc:requiresConfirmation ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean
+    ] ;
+    sh:property [
+        sh:path gc:requiresSession ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean
+    ] ;
+    sh:property [
+        sh:path gc:mayActuate ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:hasValue false ;
+        sh:message "Skills may manufacture intents but may not actuate."
+    ] .
 
 gc:NativeAgentShape a sh:NodeShape ;
     sh:targetClass gc:AgentRole ;
-    sh:property [ sh:path gc:mayActuate ; sh:minCount 1 ; sh:maxCount 1 ; sh:hasValue false ; sh:message "Agents must not receive ambient DO authority." ] .
+    sh:property [
+        sh:path gc:mayActuate ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:hasValue false ;
+        sh:message "Agents must not receive ambient DO authority."
+    ] .
 
 gc:ProtocolEndpointShape a sh:NodeShape ;
     sh:targetClass gc:ProtocolEndpoint ;
-    sh:property [ sh:path gc:protocolVersion ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+    sh:property [
+        sh:path gc:protocolVersion ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string
+    ] ;
     sh:property [ sh:path gc:transport ; sh:minCount 1 ] ;
     sh:property [ sh:path gc:mayActuate ; sh:hasValue false ] .
 
 gc:NativeReceiptShape a sh:NodeShape ;
     sh:targetClass gc:NativeReceipt ;
-    sh:property [ sh:path gc:hashAlgorithm ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("sha256") ] .
+    sh:property [
+        sh:path gc:hashAlgorithm ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ("sha256")
+    ] .
