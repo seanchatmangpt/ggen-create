@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chatmangpt.com/schemas/ggen-create-legacy-receiving-contract.schema.json",
+  "title": "ggen-create to ggen-legacy receiving contract",
+  "type": "object",
+  "required": [
+    "schema",
+    "producer",
+    "receiver",
+    "program_id",
+    "subject_digest",
+    "provided_workstreams",
+    "receiver_owned_workstreams",
+    "required_receiver_checks",
+    "refusals",
+    "standing"
+  ],
+  "properties": {
+    "schema": {"const": "ggen-create-to-ggen-legacy-contract/1"},
+    "producer": {"const": "ggen-create"},
+    "receiver": {"const": "ggen-legacy"},
+    "program_id": {"type": "string", "minLength": 1},
+    "subject_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "provided_workstreams": {
+      "type": "object",
+      "required": ["A", "B", "C", "D"],
+      "properties": {
+        "A": {"const": "ALIVE"},
+        "B": {"const": "PARTIAL_ALIVE"},
+        "C": {"const": "ALIVE"},
+        "D": {"const": "ALIVE"}
+      },
+      "additionalProperties": false
+    },
+    "receiver_owned_workstreams": {
+      "const": ["E", "F", "G", "H", "I", "J", "K"]
+    },
+    "required_receiver_checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "refusals": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "standing": {"const": "PARTIAL_ALIVE"}
+  },
+  "additionalProperties": true
+}
