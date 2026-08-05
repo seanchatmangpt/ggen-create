@@ -1,0 +1,85 @@
+name: PR 2 Exact-Head ALIVE
+
+on:
+  push:
+    branches: ["agent/power-ggen-legacy-fortune5"]
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - ".github/workflows/pr-2-alive.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-alive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert exact admitted head
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install exact source
+        run: |
+          python -m pip install -e .
+          python -m pip install jsonschema pyshacl rdflib
+      - name: Compile and execute complete test corpus
+        run: |
+          python -m compileall -q src tests
+          python -m unittest discover -s tests -v
+      - name: Execute installed global protocol boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/ggen-create-global"
+          mkdir -p "$work"
+          cd "$work"
+          ggen-create --json doctor > doctor.json
+          ggen-create --json agents route "runtime health" > route.json
+          ggen-create --json receipt chain > chain.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          assert json.loads(Path("route.json").read_text())["skill"] == "doctor.inspect"
+          assert json.loads(Path("chain.json").read_text())["result"]["valid"] is True
+          assert json.loads(Path("doctor.json").read_text())["state"] == "PARTIAL_ALIVE"
+          PY
+      - name: Manufacture receipt and replay capsule
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p alive-evidence/source
+          cp -R pyproject.toml src tests schemas ontology shapes alive-evidence/source/
+          head="$(git rev-parse HEAD)"
+          python - "$head" > alive-evidence/ggen-create-pr-2-alive.json <<'PY'
+          import json, platform, sys
+          print(json.dumps({
+              "schema": "chatman-pr-alive-receipt/v1",
+              "repository": "seanchatmangpt/ggen-create",
+              "pull_request": 2,
+              "head": sys.argv[1],
+              "python": platform.python_version(),
+              "acceptance": [
+                  "python -m compileall -q src tests",
+                  "python -m unittest discover -s tests -v",
+                  "installed doctor/agent-route/receipt-chain boundary"
+              ],
+              "standing": "ALIVE"
+          }, indent=2, sort_keys=True))
+          PY
+          tar -czf alive-evidence/ggen-create-pr-2-source.tgz -C alive-evidence source
+          rm -rf alive-evidence/source
+          sha256sum alive-evidence/* > alive-evidence/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ggen-create-pr-2-alive-evidence
+          path: alive-evidence/
+          if-no-files-found: error
