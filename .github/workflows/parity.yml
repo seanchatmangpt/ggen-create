@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ggen-create-parity-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -36,11 +40,7 @@ jobs:
           root="$RUNNER_TEMP/greeter-source"
           mkdir -p "$root/dist"
           cat > "$root/package.json" <<'JSON'
-          {
-            "name": "hello",
-            "version": "1.0.0",
-            "scripts": {"hello": "node dist/hello.js"}
-          }
+          {"name":"hello","version":"1.0.0","scripts":{"hello":"node dist/hello.js"}}
           JSON
           cat > "$root/dist/hello.js" <<'JS'
           // This is hello.js
@@ -61,10 +61,11 @@ jobs:
     steps:
       - name: Checkout ggen-create
         uses: actions/checkout@v4
-      - name: Checkout ggen manufacturer
+      - name: Checkout exact ggen manufacturer
         uses: actions/checkout@v4
         with:
           repository: seanchatmangpt/ggen
+          ref: cd913439169b0a20c130f0f8ec7251c756eb1a82
           path: _external/ggen
       - uses: actions/setup-python@v5
         with:
@@ -83,17 +84,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          source="$RUNNER_TEMP/original-source"
-          templates="$RUNNER_TEMP/hygen-templates"
-          reference="$RUNNER_TEMP/reference"
+          source="$RUNNER_TEMP/original-source"; templates="$RUNNER_TEMP/hygen-templates"; reference="$RUNNER_TEMP/reference"
           mkdir -p "$source/dist" "$templates" "$reference"
           cat > "$source/package.json" <<'JSON'
-          {
-            "name": "hello",
-            "version": "1.0.0",
-            "description": "an application that prints hello",
-            "scripts": {"hello": "node dist/hello.js"}
-          }
+          {"name":"hello","version":"1.0.0","description":"an application that prints hello","scripts":{"hello":"node dist/hello.js"}}
           JSON
           cat > "$source/dist/hello.js" <<'JS'
           // This is hello.js
@@ -111,16 +105,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          source="$RUNNER_TEMP/candidate-source"
-          verify="$RUNNER_TEMP/verify"
+          source="$RUNNER_TEMP/candidate-source"; verify="$RUNNER_TEMP/verify"
           mkdir -p "$source/dist"
           cat > "$source/package.json" <<'JSON'
-          {
-            "name": "hello",
-            "version": "1.0.0",
-            "description": "an application that prints hello",
-            "scripts": {"hello": "node dist/hello.js"}
-          }
+          {"name":"hello","version":"1.0.0","description":"an application that prints hello","scripts":{"hello":"node dist/hello.js"}}
           JSON
           cat > "$source/dist/hello.js" <<'JS'
           // This is hello.js
@@ -130,14 +118,7 @@ jobs:
           ggen-create start greeter
           ggen-create add package.json dist/hello.js
           ggen-create usename Hello
-          ggen-create verify \
-            --output "$verify" \
-            --ggen-bin "$GITHUB_WORKSPACE/_external/ggen/target/debug/ggen" \
-            --set Hola \
-            --check-command "npm run {lower}" \
-            --stdout-contains "{capitalized}!" \
-            --reference-dir "$RUNNER_TEMP/reference" \
-            --reference-id "ronp001/hygen-create@0.2.1+hygen@1.6.2"
+          ggen-create verify --output "$verify" --ggen-bin "$GITHUB_WORKSPACE/_external/ggen/target/debug/ggen" --set Hola --check-command "npm run {lower}" --stdout-contains "{capitalized}!" --reference-dir "$RUNNER_TEMP/reference" --reference-id "ronp001/hygen-create@0.2.1+hygen@1.6.2"
           python - <<'PY'
           import json, os, pathlib
           report = json.loads((pathlib.Path(os.environ["RUNNER_TEMP"]) / "verify/parity-report.json").read_text())
