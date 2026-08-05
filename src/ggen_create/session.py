@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterable
 
 from .model import (
@@ -11,6 +11,15 @@ from .model import (
     SESSION_FILE,
     SUPPORTED_SESSION_VERSIONS,
 )
+
+_SESSION_FIELDS = {
+    "about",
+    "hygen_create_version",
+    "name",
+    "files_and_dirs",
+    "templatize_using_name",
+    "gen_parent_dir",
+}
 
 
 def _session_template(name: str, filename: str) -> dict[str, Any]:
@@ -39,6 +48,12 @@ def start_session(
             "CAPTURE_ROOT_MISSING_REFUSED",
             f"not a directory: {root}",
         )
+    if not name:
+        raise GgenCreateError(
+            "EMPTY_GENERATOR_NAME_REFUSED",
+            "name must not be empty",
+        )
+    _validate_capture_path(filename)
     path = root / filename
     if path.exists():
         raise GgenCreateError(
@@ -50,6 +65,7 @@ def start_session(
 
 
 def find_session(start: Path, filename: str = SESSION_FILE) -> Path:
+    _validate_capture_path(filename)
     current = start.resolve()
     if current.is_file():
         current = current.parent
@@ -66,27 +82,46 @@ def find_session(start: Path, filename: str = SESSION_FILE) -> Path:
     )
 
 
-def load_session(path: Path) -> dict[str, Any]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+def _validate_capture_path(value: Any) -> str:
+    if not isinstance(value, str) or not value:
         raise GgenCreateError(
-            "SESSION_PARSE_REFUSED",
-            f"cannot parse {path}: {exc}",
-        ) from exc
+            "SESSION_PATH_REFUSED",
+            "capture paths must be non-empty strings",
+        )
+    if "\x00" in value:
+        raise GgenCreateError(
+            "SESSION_PATH_REFUSED",
+            f"capture path contains NUL: {value!r}",
+        )
+    normalized = value.replace("\\", "/")
+    posix = PurePosixPath(normalized)
+    windows = PureWindowsPath(value)
+    if posix.is_absolute() or windows.is_absolute() or windows.drive:
+        raise GgenCreateError(
+            "SESSION_PATH_REFUSED",
+            f"capture path must be relative: {value!r}",
+        )
+    if any(part in {"", ".", ".."} for part in posix.parts):
+        raise GgenCreateError(
+            "SESSION_PATH_REFUSED",
+            f"capture path contains an unsafe segment: {value!r}",
+        )
+    return posix.as_posix()
 
-    required = {
-        "about",
-        "hygen_create_version",
-        "name",
-        "files_and_dirs",
-        "templatize_using_name",
-        "gen_parent_dir",
-    }
-    if not isinstance(value, dict) or not required.issubset(value):
+
+def _validate_session_document(value: Any, path: Path) -> dict[str, Any]:
+    if not isinstance(value, dict):
         raise GgenCreateError(
             "SESSION_SCHEMA_REFUSED",
-            f"invalid capture schema: {path}",
+            f"capture must be an object: {path}",
+        )
+    fields = set(value)
+    missing = sorted(_SESSION_FIELDS - fields)
+    extras = sorted(fields - _SESSION_FIELDS)
+    if missing or extras:
+        raise GgenCreateError(
+            "SESSION_SCHEMA_REFUSED",
+            f"capture fields differ; missing={missing}, extras={extras}",
         )
     if value.get("about") != ABOUT:
         raise GgenCreateError(
@@ -110,11 +145,27 @@ def load_session(path: Path) -> dict[str, Any]:
             "SESSION_SCHEMA_REFUSED",
             "name must be a non-empty string",
         )
-    if not isinstance(value["files_and_dirs"], dict):
+    files = value.get("files_and_dirs")
+    if not isinstance(files, dict) or not files:
         raise GgenCreateError(
             "SESSION_SCHEMA_REFUSED",
-            "files_and_dirs must be an object",
+            "files_and_dirs must be a non-empty object",
         )
+    normalized_files: dict[str, bool] = {}
+    for raw_path, included in files.items():
+        rel = _validate_capture_path(raw_path)
+        if rel in normalized_files:
+            raise GgenCreateError(
+                "SESSION_PATH_COLLISION_REFUSED",
+                f"multiple capture paths normalize to {rel!r}",
+            )
+        if not isinstance(included, bool):
+            raise GgenCreateError(
+                "SESSION_SCHEMA_REFUSED",
+                f"files_and_dirs[{raw_path!r}] must be boolean",
+            )
+        normalized_files[rel] = included
+    value["files_and_dirs"] = normalized_files
     seed = value.get("templatize_using_name")
     if seed is not None and (not isinstance(seed, str) or not seed):
         raise GgenCreateError(
@@ -127,6 +178,17 @@ def load_session(path: Path) -> dict[str, Any]:
             "gen_parent_dir must be a boolean",
         )
     return value
+
+
+def load_session(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise GgenCreateError(
+            "SESSION_PARSE_REFUSED",
+            f"cannot parse {path}: {exc}",
+        ) from exc
+    return _validate_session_document(value, path)
 
 
 def _is_binary(path: Path) -> bool:
@@ -276,26 +338,35 @@ def abort_session(session_path: Path) -> None:
 
 def admitted_files(session_path: Path) -> list[str]:
     session = load_session(session_path)
-    root = session_path.parent
+    root = session_path.parent.resolve()
     result: list[str] = []
     for rel, included in session["files_and_dirs"].items():
         if not included:
             continue
-        if not isinstance(rel, str) or not rel:
-            raise GgenCreateError(
-                "SESSION_SCHEMA_REFUSED",
-                "files_and_dirs keys must be non-empty strings",
-            )
-        if not isinstance(included, bool):
-            raise GgenCreateError(
-                "SESSION_SCHEMA_REFUSED",
-                f"files_and_dirs[{rel!r}] must be boolean",
-            )
         path = root / rel
-        if not path.is_file():
+        if path.is_symlink():
+            raise GgenCreateError(
+                "SYMLINK_REFUSED",
+                f"symlinks are not admitted: {rel}",
+            )
+        try:
+            resolved = path.resolve(strict=True)
+        except OSError as exc:
             raise GgenCreateError(
                 "INCLUDED_PATH_MISSING_REFUSED",
-                f"missing: {rel}",
+                f"missing: {rel}: {exc}",
+            ) from exc
+        try:
+            resolved.relative_to(root)
+        except ValueError as exc:
+            raise GgenCreateError(
+                "PATH_OUTSIDE_CAPTURE_ROOT_REFUSED",
+                f"{resolved} is outside capture root {root}",
+            ) from exc
+        if not resolved.is_file():
+            raise GgenCreateError(
+                "INCLUDED_PATH_MISSING_REFUSED",
+                f"not a file: {rel}",
             )
         result.append(rel)
     if not result:
