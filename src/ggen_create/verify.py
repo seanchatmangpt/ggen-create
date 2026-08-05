@@ -16,11 +16,32 @@ _REFERENCE_SESSION_CANONICAL_PATH = ".ggen-create-reference/capture-session.json
 
 
 def tree_manifest(root: Path) -> dict[str, bytes]:
-    return {
-        path.relative_to(root).as_posix(): path.read_bytes()
-        for path in sorted(root.rglob("*"))
-        if path.is_file()
-    }
+    root = root.resolve()
+    if not root.is_dir():
+        raise GgenCreateError(
+            "TREE_ROOT_MISSING_REFUSED",
+            f"not a directory: {root}",
+        )
+    result: dict[str, bytes] = {}
+    for path in sorted(root.rglob("*")):
+        rel = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            raise GgenCreateError(
+                "TREE_SYMLINK_REFUSED",
+                f"symlink is not admitted in comparison tree: {rel}",
+            )
+        if not path.is_file():
+            continue
+        try:
+            resolved = path.resolve(strict=True)
+            resolved.relative_to(root)
+        except (OSError, ValueError) as exc:
+            raise GgenCreateError(
+                "TREE_PATH_ESCAPE_REFUSED",
+                f"comparison path escapes {root}: {path}",
+            ) from exc
+        result[rel] = path.read_bytes()
+    return result
 
 
 def compare_trees(left: Path, right: Path) -> dict[str, Any]:
@@ -141,10 +162,20 @@ def _expected_artifacts(session_path: Path, value: str) -> dict[str, bytes]:
         raise GgenCreateError("PARAMETER_NOT_SEEDED_REFUSED", "missing seed")
     root = session_path.parent
     expected: dict[str, bytes] = {}
-    for rel in admitted_files(session_path):
+    casefold_targets: dict[str, str] = {}
+    for rel in sorted(admitted_files(session_path)):
         target, _ = render_concrete(rel, seed, value)
         if session["gen_parent_dir"]:
             target = values_for(value)["name"] + "/" + target
+        collision_key = target.casefold()
+        previous = casefold_targets.get(collision_key)
+        if previous is not None and previous != rel:
+            raise GgenCreateError(
+                "ARTIFACT_TARGET_COLLISION_REFUSED",
+                f"{rel!r} and {previous!r} both render to {target!r} "
+                f"for parameter value {value!r}",
+            )
+        casefold_targets[collision_key] = rel
         source = (root / rel).read_text(encoding="utf-8")
         rendered, _ = render_concrete(source, seed, value)
         expected[target] = rendered.encode("utf-8")
@@ -266,9 +297,16 @@ def verify_parity(
     seed = session["templatize_using_name"]
     if not seed:
         raise GgenCreateError("PARAMETER_NOT_SEEDED_REFUSED", "missing seed")
-    # Identifier admission must occur before resolving, deleting, or creating
-    # the verifier output directory.
+    # Identifier and target-collision admission must occur before resolving,
+    # deleting, or creating the verifier output directory.
     values_for(variation_value)
+    expected_by_label = {
+        "reconstruction": _expected_artifacts(session_path, seed),
+        "variation": _expected_artifacts(session_path, variation_value),
+    }
+    if reference_dir is not None:
+        # Read-only reference admission also occurs before output replacement.
+        _reference_manifest(reference_dir)
     sync_args = sync_args or ["sync", "run"]
 
     output_root = output_root.resolve()
@@ -287,7 +325,7 @@ def verify_parity(
 
     revision_source = output_root / "revision-source"
     revision_source.mkdir(parents=True)
-    for rel in admitted_files(session_path):
+    for rel in sorted(admitted_files(session_path)):
         source = session_path.parent / rel
         target = revision_source / rel
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -304,7 +342,7 @@ def verify_parity(
     mutation_target = next(
         (
             revision_source / rel
-            for rel in admitted_files(revision_session)
+            for rel in sorted(admitted_files(revision_session))
             if rel != revision_session.name
         ),
         None,
@@ -343,8 +381,11 @@ def verify_parity(
         shutil.copytree(base_package, run_dir)
         rewrite_package_parameter(run_dir, value)
         execution = _run_ggen(run_dir, ggen_bin, sync_args)
-        expected = _expected_artifacts(session_path, value)
-        _write_artifact_projection(run_dir, artifact_dir, expected)
+        _write_artifact_projection(
+            run_dir,
+            artifact_dir,
+            expected_by_label[label],
+        )
         executions[label] = execution
         artifacts[label] = str(artifact_dir)
 
