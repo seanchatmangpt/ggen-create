@@ -15,6 +15,14 @@ from .session import find_session
 from .skills import SKILLS, Broker, SkillRegistry
 
 
+def refusal(exc: GgenCreateError) -> dict[str, Any]:
+    return {
+        "state": "REFUSED",
+        "refusal": exc.code,
+        "detail": exc.detail,
+    }
+
+
 def doctor_report(
     root: Path,
     *,
@@ -29,10 +37,12 @@ def doctor_report(
             "a2a_protocol": A2A_PROTOCOL_VERSION,
         },
         "authority": {
-            "state": "ALIVE"
-            if all(not skill.may_actuate for skill in SKILLS)
-            and all(not agent.may_actuate for agent in AGENTS)
-            else "REFUSED",
+            "state": (
+                "ALIVE"
+                if all(not skill.may_actuate for skill in SKILLS)
+                and all(not agent.may_actuate for agent in AGENTS)
+                else "REFUSED"
+            ),
             "skill_count": len(SKILLS),
             "agent_count": len(AGENTS),
         },
@@ -60,71 +70,95 @@ def doctor_report(
         }
 
     receipts = ReceiptStore(root)
-    latest = receipts.latest()
-    if latest is None:
-        checks["receipts"] = {
-            "state": "PARTIAL_ALIVE",
-            "count": 0,
-            "latest": None,
-            "chain": receipts.verify_chain(),
-        }
-    else:
-        latest_check = ReceiptStore.verify(Path(latest["path"]))
+    try:
+        latest = receipts.latest()
         chain = receipts.verify_chain()
-        checks["receipts"] = {
-            "state": "ALIVE"
-            if latest_check["valid"] and chain["valid"]
-            else "REFUSED",
-            "count": chain["count"],
-            "latest": latest_check,
-            "chain": chain,
-        }
+        if latest is None:
+            checks["receipts"] = {
+                "state": "PARTIAL_ALIVE",
+                "count": 0,
+                "latest": None,
+                "chain": chain,
+            }
+        else:
+            latest_check = ReceiptStore.verify(Path(latest["path"]))
+            checks["receipts"] = {
+                "state": (
+                    "ALIVE"
+                    if latest_check["valid"] and chain["valid"]
+                    else "REFUSED"
+                ),
+                "count": chain["count"],
+                "latest": latest_check,
+                "chain": chain,
+            }
+    except GgenCreateError as exc:
+        checks["receipts"] = refusal(exc)
 
-    package_check: dict[str, Any]
     if session_path is None:
-        package_check = {
+        checks["package"] = {
             "state": "UNKNOWN",
             "reason": "NO_CAPTURE_SESSION",
         }
     else:
-        automatic_state = load_automatic_state(session_path)
-        package = (
-            Path(str(automatic_state["package"]))
-            if automatic_state and automatic_state.get("package")
-            else None
-        )
-        if package is None:
-            package_check = {
-                "state": "PARTIAL_ALIVE",
-                "reason": "NO_AUTOMATIC_PACKAGE_RECORDED",
-            }
-        else:
-            integrity = verify_package(package)
-            package_check = {
-                "state": "ALIVE" if integrity["valid"] else "REFUSED",
-                "integrity": integrity,
-            }
-    checks["package"] = package_check
+        try:
+            automatic_state = load_automatic_state(session_path)
+            package = (
+                Path(str(automatic_state["package"]))
+                if automatic_state and automatic_state.get("package")
+                else None
+            )
+            if package is None:
+                checks["package"] = {
+                    "state": "PARTIAL_ALIVE",
+                    "reason": "NO_AUTOMATIC_PACKAGE_RECORDED",
+                }
+            else:
+                integrity = verify_package(package)
+                checks["package"] = {
+                    "state": (
+                        "ALIVE" if integrity["valid"] else "REFUSED"
+                    ),
+                    "integrity": integrity,
+                }
+        except GgenCreateError as exc:
+            checks["package"] = refusal(exc)
 
     task_checks: dict[str, Any] = {}
     for namespace in ("mcp", "a2a"):
-        store = TaskStore(root, namespace)
-        pruned = store.prune()
-        values = store.list()
-        task_checks[namespace] = {
-            "state": "ALIVE",
-            "count": len(values),
-            "pruned": pruned,
-            "status_counts": {
-                status: sum(
-                    1 for item in values if item.get("status") == status
-                )
-                for status in sorted(
-                    {str(item.get("status")) for item in values}
-                )
-            },
-        }
-    checks["tasks"] = task_checks
+        try:
+            store = TaskStore(root, namespace)
+            pruned = store.prune()
+            values = store.list()
+            status_values = sorted(
+                {str(item.get("status")) for item in values}
+            )
+            task_checks[namespace] = {
+                "state": "ALIVE",
+                "count": len(values),
+                "pruned": pruned,
+                "status_counts": {
+                    status: sum(
+                        1
+                        for item in values
+                        if item.get("status") == status
+                    )
+                    for status in status_values
+                },
+            }
+        except GgenCreateError as exc:
+            task_checks[namespace] = refusal(exc)
+    checks["tasks"] = {
+        "state": (
+            "REFUSED"
+            if any(
+                item.get("state") == "REFUSED"
+                for item in task_checks.values()
+            )
+            else "ALIVE"
+        ),
+        "namespaces": task_checks,
+    }
 
     states = [
         value.get("state")
