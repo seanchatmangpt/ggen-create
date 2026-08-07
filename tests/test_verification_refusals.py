@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from pathlib import Path
 import tempfile
 import unittest
 
+from fastmcp import Client
+
 from ggen_create.cli import run as run_cli
-from ggen_create.mcp import MCP_PROTOCOL_VERSION, McpServer
+from ggen_create.mcp import create_mcp_server
 from ggen_create.model import GgenCreateError
 from ggen_create.package import build_package
 from ggen_create.runtime import ReceiptStore
@@ -88,46 +91,21 @@ class VerificationRefusalTests(unittest.TestCase):
             value["state"] = "BLOCKED"
             path.write_text(json.dumps(value), encoding="utf-8")
 
-            server = McpServer(root)
-            initialized = server.handle(
-                {
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "initialize",
-                    "params": {
-                        "protocolVersion": MCP_PROTOCOL_VERSION,
-                        "capabilities": {},
-                        "clientInfo": {"name": "test", "version": "1"},
-                    },
-                }
-            )
-            assert initialized is not None
-            server.handle(
-                {
-                    "jsonrpc": "2.0",
-                    "method": "notifications/initialized",
-                    "params": {},
-                }
-            )
-            response = server.handle(
-                {
-                    "jsonrpc": "2.0",
-                    "id": 2,
-                    "method": "tools/call",
-                    "params": {
-                        "name": "ggen_create_receipt_verify",
-                        "arguments": {
-                            "path": str(path.relative_to(root)),
-                        },
-                    },
-                }
-            )
-            assert response is not None
-            self.assertTrue(response["result"]["isError"], response)
-            self.assertEqual(
-                response["result"]["structuredContent"]["code"],
-                "RECEIPT_DIGEST_REFUSED",
-            )
+            async def call_tool() -> None:
+                mcp = create_mcp_server(root)
+                async with Client(mcp) as client:
+                    response = await client.call_tool(
+                        "ggen_create_receipt_verify",
+                        {"path": str(path.relative_to(root))},
+                        raise_on_error=False,
+                    )
+                    self.assertTrue(response.is_error, response)
+                    self.assertEqual(
+                        response.structured_content["code"],
+                        "RECEIPT_DIGEST_REFUSED",
+                    )
+
+            asyncio.run(call_tool())
 
     def test_cli_package_verify_raises_on_invalid_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

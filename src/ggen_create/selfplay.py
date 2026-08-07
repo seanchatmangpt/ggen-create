@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import replace
 import json
 from pathlib import Path
-import time
 from typing import Any, Callable
 
 from .agents import AGENTS, AgentRuntime
@@ -45,33 +44,13 @@ def _check(
     }
 
 
-def _poll_mcp(server: Any, task_id: str) -> dict[str, Any]:
-    for index in range(100):
-        response = server.handle(
-            {
-                "jsonrpc": "2.0",
-                "id": 1000 + index,
-                "method": "tasks/get",
-                "params": {"taskId": task_id},
-            }
-        )
-        task = response["result"]
-        if task["status"] != "working":
-            return task
-        time.sleep(0.01)
-    raise GgenCreateError(
-        "SELFPLAY_TASK_TIMEOUT_REFUSED",
-        task_id,
-    )
-
-
 def run_selfplay(
     session_path: Path,
     *,
     output_root: Path,
 ) -> dict[str, Any]:
     from .a2a import A2AService
-    from .mcp import MCP_PROTOCOL_VERSION, McpServer
+    from .mcp import run_mcp_selfplay_checks_sync
 
     session_path = session_path.resolve()
     root = session_path.parent.resolve()
@@ -283,100 +262,11 @@ def run_selfplay(
         }
     )
 
-    unsupported = McpServer(root).handle(
-        {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "1900-01-01",
-                "capabilities": {},
-                "clientInfo": {"name": "selfplay", "version": "1"},
-            },
-        }
-    )
-    scenarios.append(
-        _check(
-            "mcp-version-refusal",
-            unsupported is not None
-            and unsupported.get("error", {}).get("code") == -32602,
-        )
-    )
-    mcp = McpServer(root)
-    pre_ready = mcp.handle(
-        {
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": "tools/list",
-            "params": {},
-        }
-    )
-    scenarios.append(
-        _check(
-            "mcp-lifecycle-refusal",
-            pre_ready is not None
-            and pre_ready.get("error", {}).get("message")
-            == "MCP_LIFECYCLE_REFUSED",
-        )
-    )
-    initialized = mcp.handle(
-        {
-            "jsonrpc": "2.0",
-            "id": 3,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "capabilities": {"tasks": {}},
-                "clientInfo": {"name": "selfplay", "version": "1"},
-            },
-        }
-    )
-    mcp.handle(
-        {
-            "jsonrpc": "2.0",
-            "method": "notifications/initialized",
-            "params": {},
-        }
-    )
-    task_response = mcp.handle(
-        {
-            "jsonrpc": "2.0",
-            "id": 4,
-            "method": "tools/call",
-            "params": {
-                "name": "ggen_create_apply",
-                "arguments": {
-                    "confirm": True,
-                    "output_root": str(output_root / "mcp"),
-                },
-                "task": {"ttl": 60_000, "pollInterval": 50},
-            },
-        }
-    )
-    task_id = task_response["result"]["task"]["taskId"]
-    mcp_task = _poll_mcp(mcp, task_id)
-    mcp_result = mcp.handle(
-        {
-            "jsonrpc": "2.0",
-            "id": 5,
-            "method": "tasks/result",
-            "params": {"taskId": task_id},
-        }
-    )
-    scenarios.append(
-        _check(
-            "mcp-durable-task",
-            initialized is not None
-            and initialized["result"]["protocolVersion"]
-            == MCP_PROTOCOL_VERSION
-            and mcp_task["status"] == "completed"
-            and mcp_result is not None
-            and (
-                "io.modelcontextprotocol/related-task"
-                in mcp_result["result"]["_meta"]
-            ),
-        )
-    )
+    for name, passed, details in run_mcp_selfplay_checks_sync(
+        root,
+        output_root=output_root,
+    ):
+        scenarios.append(_check(name, passed, **details))
 
     a2a = A2AService(
         root,

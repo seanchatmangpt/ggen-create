@@ -8,6 +8,9 @@ version = "26.8.6"
 description = "Automatic and autonomic exemplar-to-ggen factory compiler with MCP and A2A"
 readme = "README.md"
 requires-python = ">=3.11"
+dependencies = [
+  "fastmcp[tasks]>=3.4",
+]
 license = { text = "MIT" }
 authors = [{ name = "Sean Chatman" }]
 classifiers = [
