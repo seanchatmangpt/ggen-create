@@ -29,4 +29,6 @@ build/
 gall-hygen-parity-receipt.json
 submodule-parity-receipt.json
 ggen-binary-parity-receipt.json
+p7-crown-receipt.json
 parity-report.json
+_templates/

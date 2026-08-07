@@ -249,3 +249,46 @@ python3 -m unittest discover -s tests -p 'test_ggen_binary_parity.py' -v
 
 If either the submodule or a real `ggen` binary is missing, `test_ggen_binary_parity.py`
 skips cleanly rather than failing.
+
+## Real P7 crown: `HYGEN_CREATE_PARITY_ALIVE` (`scripts/gall_p7_crown.py`)
+
+`gall_ggen_binary_parity.py` above proved P0-P6 against a real `ggen` binary but
+deliberately stopped short of P7 — that additionally requires a `reference_dir` produced
+by the real upstream **`hygen`** render step (the separate npm package from
+`hygen-create`, which only captures/templatizes, not renders). `scripts/gall_p7_crown.py`
+closes that gap:
+
+| Checkpoint | Object | Required consequence |
+| --- | --- | --- |
+| PC0 | hygen-create CLI build | a real `hygen-create` CLI builds from the live submodule (hermetic yarn install/build) |
+| PC1 | template generation | `hygen-create generate` produces real Hygen `.ejs.t` templates from the submodule's captured example session |
+| PC2 | real hygen render | the independent `hygen` renderer (`npx hygen greeter new --name Hola`) renders the Hola variant — a tool never previously exercised by this repo |
+| PC3 | P7 crown | `verify_parity`, called against a real `ggen` binary with that rendered tree as `reference_dir`, reaches `P7_PARITY_CROWN: ALIVE` with a byte-exact, zero-drift `reference_comparison` |
+
+This is the actual evidence `product/PRD.md`'s `HYGEN_CREATE_PARITY_ALIVE` gate describes:
+real `ggen-create` CLI, real `ggen` binary reconstructing `Hello` and generating `Hola`,
+and the original `hygen-create`/`hygen` toolchain independently generating `Hola` for
+cross-rail comparison — all in one run, byte-exact, first try.
+
+Opt-in like the checkpoints above: requires the submodule, a real `ggen` binary, and a
+full Node/npm/yarn toolchain with network access (`npx` fetches `hygen` on first use).
+Wired into CI only on push to `main` — see `.github/workflows/ci.yml`'s `p7-crown` job —
+not on every PR, to keep PR feedback fast.
+
+Run it directly:
+
+```sh
+git submodule update --init vendor/hygen-create
+python3 scripts/gall_p7_crown.py \
+  --root . \
+  --receipt p7-crown-receipt.json
+```
+
+Run the unit binding:
+
+```sh
+python3 -m unittest discover -s tests -p 'test_p7_crown.py' -v
+```
+
+If any prerequisite (submodule, `ggen` binary, node/npx/yarn) is missing,
+`test_p7_crown.py` skips cleanly rather than failing.
