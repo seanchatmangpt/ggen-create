@@ -27,4 +27,5 @@ __pycache__/
 dist/
 build/
 gall-hygen-parity-receipt.json
+submodule-parity-receipt.json
 parity-report.json

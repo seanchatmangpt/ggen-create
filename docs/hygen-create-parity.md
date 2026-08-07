@@ -148,3 +148,55 @@ python3 -m unittest discover -s tests -p 'test_parity_*.py' -v
 ```
 
 The verifier receipt claim ceiling is `EXAMPLE_DOCUMENTATION_AND_LOCAL_REFERENCE_CONSEQUENCE_ONLY`. It does not establish the future ggen-create CLI, external ggen execution, arbitrary repository synthesis, or release standing.
+
+## Live submodule validation (opt-in)
+
+G0-G7 above prove that the vendored fixture files
+(`examples/hygen-create-reference/*`) are internally consistent with their own hash
+manifest. That is not the same as proving those fixtures still match a live, working
+copy of upstream `hygen-create` — the fixtures and the manifest were copied together, so
+G0/G1 cannot by themselves catch drift between the two.
+
+`vendor/hygen-create` is the real `ronp001/hygen-create` repository, vendored as a git
+submodule pinned to the same commit (`REFERENCE_COMMIT`,
+`124fac27df0ddbc498b841ba3e05997ed10e4c39`) that G0 already asserts. Four checkpoints,
+`scripts/gall_submodule_parity.py`, corroborate parity against that live checkout:
+
+| Checkpoint | Object | Required consequence |
+| --- | --- | --- |
+| SM0 | submodule identity | checked-out commit equals `REFERENCE_COMMIT` |
+| SM1 | upstream test suite | upstream's own `install`/`build`/`test` all succeed at that commit |
+| SM2 | live blob match | the submodule's live `example/*` files are still byte-identical to the static fixtures |
+| SM3 | live reconstruction | ggen-create's transform logic reconstructs `Hello`/`Hola` from the *live* submodule tree, not the static copy, byte-exactly |
+
+This is deliberately **not** part of the G0-G7 crown, the default GALL crown, or CI: it
+requires `git submodule update --init vendor/hygen-create` plus Node/npm/yarn and network
+access to install and build the upstream project. Its receipt's claim ceiling is
+`SUBMODULE_LIVE_CONSEQUENCE_ONLY` — it corroborates, but does not itself promote,
+`HYGEN_CREATE_PARITY_ALIVE` or any GALL-admitted standing.
+
+Run it directly:
+
+```sh
+git submodule update --init vendor/hygen-create
+python3 scripts/gall_submodule_parity.py \
+  --root . \
+  --receipt submodule-parity-receipt.json
+```
+
+Run the unit binding (SM0/SM2/SM3 only — SM1 needs network and is not exercised by the
+default unit run):
+
+```sh
+python3 -m unittest discover -s tests -p 'test_submodule_parity.py' -v
+```
+
+If the submodule is not initialized, `test_submodule_parity.py` skips cleanly rather than
+failing, so the default `unittest discover` run stays green and network-free either way.
+
+Known finding from running SM1 against the pinned commit: upstream's own 2018-era test
+suite uses `mock-fs`, which is incompatible with modern Node.js (`fs` internals it
+monkey-patches have since changed) — `tsc` builds cleanly, but `jest` fails a majority of
+suites under current Node. This is a real, typed result about the upstream project's test
+tooling, not a ggen-create defect, and is exactly the kind of drift this checkpoint exists
+to surface rather than hide.
