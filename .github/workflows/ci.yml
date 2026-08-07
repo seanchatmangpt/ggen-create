@@ -132,7 +132,6 @@ jobs:
           path: gall-hygen-parity-receipt.json
           if-no-files-found: error
           retention-days: 14
-
   ontology-deep:
     name: ontology evidence (path-owned)
     needs: admission
