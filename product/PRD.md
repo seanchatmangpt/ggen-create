@@ -343,8 +343,19 @@ case-family unit contract:                ALIVE
 example reconstruction and variation:     ALIVE
 documentation-to-example closure:         ALIVE
 ggen-create CLI and package runtime:        ALIVE (local unit evidence)
-real public ggen parity crown (P7):         UNKNOWN until exact-head CI with ggen
+real public ggen parity crown (P7):         ALIVE (real ggen 26.8.6 + real upstream hygen
+                                             render, byte-exact, exact-head CI on push to
+                                             main: scripts/gall_p7_crown.py)
 ```
+
+`HYGEN_CREATE_PARITY_ALIVE` (line 301's product-parity gate) is admitted: real
+`ggen-create` CLI, real `ggen` binary reconstructs `Hello` byte-exactly and generates
+`Hola`, the real, independent original `hygen`/`hygen-create` toolchain independently
+generates `Hola` for cross-rail comparison, and `reference_comparison.equal` is `true`
+with zero drift — `.github/workflows/ci.yml`'s `p7-crown` job publishes this evidence on
+every push to `main`. Revision archive law (`greeter.1`) and the changed-source archive
+consequence remain open per `docs/hygen-create-parity.md`'s "Revision and replay law"
+section — this crown proves identical-replay determinism, not the archive-on-change path.
 
 ## Product falsifiers
 

@@ -34,11 +34,12 @@ Not delivered:
 
 ## Phase 1 — Deterministic parity core
 
-**State: IMPLEMENTED locally; P0-P6 proven against a real `ggen` binary locally
-(`scripts/gall_ggen_binary_parity.py`, GB0-GB3, `ALIVE`); external exact-head P7 crown
-remains the GA gate.** P7 additionally requires a `reference_dir` produced by the real
-upstream `hygen` render step under exact-head CI — not yet attempted; see the "80/20 ERRC"
-section below.
+**State: ALIVE. `HYGEN_CREATE_PARITY_ALIVE` is admitted.** P0-P6 proven against a real
+`ggen` binary (`scripts/gall_ggen_binary_parity.py`, GB0-GB3), and the P7 crown itself
+closed for real: `scripts/gall_p7_crown.py` (PC0-PC3) drives the real, independent
+upstream `hygen` renderer against a real `ggen` binary — byte-exact, zero-drift
+`reference_comparison`, published as exact-head CI evidence on every push to `main`
+(`.github/workflows/ci.yml`'s `p7-crown` job). This is the v26.8.6 GA gate; it is closed.
 
 Required implementation without agents:
 
@@ -208,13 +209,7 @@ No release may claim general repository synthesis from:
 
 ## v26.8.6 claim ceiling
 
-Until `HYGEN_CREATE_PARITY_ALIVE` is green under exact-head CI:
-
-```text
-EXAMPLE_DOCUMENTATION_AND_LOCAL_REFERENCE_CONSEQUENCE_ONLY
-```
-
-After product parity GA:
+`HYGEN_CREATE_PARITY_ALIVE` is green under exact-head CI (`p7-crown` job, push-to-main):
 
 ```text
 HYGEN_CREATE_PARITY_ALIVE

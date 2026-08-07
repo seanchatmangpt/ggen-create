@@ -49,8 +49,16 @@ case-family unit contract:                ALIVE
 example reconstruction and variation:     ALIVE
 documentation-to-example closure:         ALIVE
 ggen-create CLI and package runtime:        ALIVE (local unit evidence)
-real public ggen parity crown (P7):         UNKNOWN until exact-head CI with ggen
+real public ggen parity crown (P7):         ALIVE (real ggen + real upstream hygen render,
+                                             exact-head CI: scripts/gall_p7_crown.py, run
+                                             31216549992)
 ```
+
+`HYGEN_CREATE_PARITY_ALIVE` is admitted: `real ggen 26.8.6` reconstructs `Hello` and
+generates `Hola`, the real, independent upstream `hygen` renderer generates `Hola` for
+cross-rail comparison, and the two are byte-exact with zero drift — published under
+exact-head CI on push to `main` (`.github/workflows/ci.yml`'s `p7-crown` job). See
+`docs/hygen-create-parity.md`'s "Real P7 crown" section.
 
 Install and run locally:
 
