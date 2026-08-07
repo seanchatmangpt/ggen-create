@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
+import re
 from typing import Any
 
 from .model import GgenCreateError
@@ -135,6 +136,11 @@ class AgentRuntime:
         text = goal.strip().lower()
         if not text:
             raise GgenCreateError("AGENT_ROUTE_UNSUPPORTED", goal)
+        tokens = set(re.findall(r"[a-z0-9]+", text))
+
+        def matches(keyword: str) -> bool:
+            return keyword in text if " " in keyword else keyword in tokens
+
         routes = (
             (
                 ("selfplay", "adversarial", "red team"),
@@ -186,7 +192,7 @@ class AgentRuntime:
             (("inspect", "capture", "receive"), "receiver", "capture.inspect"),
         )
         for words, agent, skill in routes:
-            if any(word in text for word in words):
+            if any(matches(word) for word in words):
                 return {
                     "agent": agent,
                     "skill": skill,
