@@ -31,17 +31,27 @@ python3 scripts/gall_hygen_parity.py --root . --receipt gall-hygen-parity-receip
 python3 -m unittest discover -s tests -p 'test_parity_*.py' -v
 ```
 
-See [the complete parity guide](docs/hygen-create-parity.md) and [CI evidence architecture](docs/ci.md).
+See [the complete parity guide](docs/hygen-create-parity.md), [CI evidence architecture](docs/ci.md), [product requirements](product/PRD.md), and [architecture requirements](architecture/ARD.md).
 
 ## Standing
 
 ```text
-reference identity and fixture bytes: ALIVE
-case-family unit contract:            ALIVE
-example reconstruction and variation: ALIVE when the Gall verifier succeeds
-documentation-to-example closure:      ALIVE when the Gall verifier succeeds
-ggen-create product runtime on main:   UNKNOWN
-real ggen package manufacture:          UNKNOWN
+reference identity and fixture bytes:     ALIVE
+case-family unit contract:                ALIVE
+example reconstruction and variation:     ALIVE
+documentation-to-example closure:         ALIVE
+ggen-create CLI and package runtime:        ALIVE (local unit evidence)
+real public ggen parity crown (P7):         UNKNOWN until exact-head CI with ggen
 ```
 
-A documented contract is not promoted into runtime implementation evidence. The purpose of this layer is to ensure that future product code cannot redefine the example or documentation while still claiming Hygen parity.
+Install and run locally:
+
+```sh
+python3 -m pip install -e .
+ggen-create --help
+ggen-create start greeter
+ggen-create add package.json dist/hello.js
+ggen-create usename Hello
+ggen-create status
+ggen-create generate --output /tmp/packages
+```

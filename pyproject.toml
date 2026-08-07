@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ggen-create"
+version = "26.8.6"
+description = "Automatic and autonomic exemplar-to-ggen factory compiler with MCP and A2A"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Sean Chatman" }]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "License :: OSI Approved :: MIT License",
+]
+
+[project.scripts]
+ggen-create = "ggen_create.cli:main"
+ggen-create-mcp = "ggen_create.mcp:main"
+ggen-create-a2a = "ggen_create.a2a:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
