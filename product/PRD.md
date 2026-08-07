@@ -337,10 +337,10 @@ v26.8.6 admitted standing on `main`:
 ```text
 reference identity and fixture bytes:     ALIVE
 case-family unit contract:                ALIVE
-example reconstruction and variation:     ALIVE (documentation verifier)
-documentation-to-example closure:         ALIVE (documentation verifier)
-ggen-create product runtime on main:        UNKNOWN
-real ggen package manufacture:              UNKNOWN
+example reconstruction and variation:     ALIVE
+documentation-to-example closure:         ALIVE
+ggen-create CLI and package runtime:        ALIVE (local unit evidence)
+real public ggen parity crown (P7):         UNKNOWN until exact-head CI with ggen
 ```
 
 ## Product falsifiers

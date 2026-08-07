@@ -29,7 +29,7 @@ Not delivered:
 
 ## Phase 1 — Deterministic parity core
 
-**State: SPECIFIED in v26.8.6; runtime admission pending.**
+**State: IMPLEMENTED locally; external exact-head P7 crown remains the GA gate.**
 
 Required implementation without agents:
 
