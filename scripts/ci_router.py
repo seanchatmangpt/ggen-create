@@ -40,6 +40,7 @@ def _is_ci(path: str) -> bool:
             "scripts/gall_contract.py",
             "scripts/gall_surfaces.py",
             "scripts/gall_checkpoint.py",
+            "scripts/gall_hygen_parity.py",
             "docs/ci.md",
             "docs/gall.md",
         }
@@ -48,7 +49,11 @@ def _is_ci(path: str) -> bool:
 
 
 def _is_docs(path: str) -> bool:
-    return path in {"README.md", "BOOTSTRAP.md"} or path.startswith("docs/") or path.endswith(".md")
+    return (
+        path in {"README.md", "BOOTSTRAP.md", "ROADMAP.md"}
+        or path.startswith(("docs/", "product/", "architecture/"))
+        or path.endswith(".md")
+    )
 
 
 def _is_ontology(path: str) -> bool:
@@ -56,9 +61,17 @@ def _is_ontology(path: str) -> bool:
 
 
 def _is_build(path: str) -> bool:
-    if path in {"Cargo.toml", "Cargo.lock", "build.rs", "rust-toolchain", "rust-toolchain.toml", "deny.toml"}:
+    if path in {
+        "Cargo.toml",
+        "Cargo.lock",
+        "build.rs",
+        "rust-toolchain",
+        "rust-toolchain.toml",
+        "deny.toml",
+        "pyproject.toml",
+    }:
         return True
-    if path.startswith(("src/", "crates/", "examples/", "benches/", "fixtures/")):
+    if path.startswith(("src/", "crates/", "examples/", "benches/", "fixtures/", "schemas/")):
         return True
     return path.startswith("tests/") and not path.startswith("tests/test_ci_")
 

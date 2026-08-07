@@ -33,10 +33,50 @@ class RouterTests(unittest.TestCase):
         self.assertEqual(report["ontology_deep"], [])
 
     def test_gall_code_is_ci_owned(self):
-        report = route_paths(["scripts/gall_checkpoint.py", "scripts/gall_contract.py", "scripts/gall_surfaces.py", "tests/test_ci_gall.py", "docs/gall.md"])
+        report = route_paths(
+            [
+                "scripts/gall_checkpoint.py",
+                "scripts/gall_contract.py",
+                "scripts/gall_surfaces.py",
+                "scripts/gall_hygen_parity.py",
+                "tests/test_ci_gall.py",
+                "docs/gall.md",
+            ]
+        )
         self.assertEqual(
             report["ci_deep"],
-            ["docs/gall.md", "scripts/gall_checkpoint.py", "scripts/gall_contract.py", "scripts/gall_surfaces.py", "tests/test_ci_gall.py"],
+            [
+                "docs/gall.md",
+                "scripts/gall_checkpoint.py",
+                "scripts/gall_contract.py",
+                "scripts/gall_hygen_parity.py",
+                "scripts/gall_surfaces.py",
+                "tests/test_ci_gall.py",
+            ],
+        )
+        self.assertEqual(report["build_deep"], [])
+
+    def test_hygen_reference_fixture_is_build_owned(self):
+        report = route_paths(
+            [
+                "examples/hygen-create-reference/parity.json",
+                "tests/test_parity_checkpoints.py",
+            ]
+        )
+        self.assertEqual(
+            report["build_deep"],
+            [
+                "examples/hygen-create-reference/parity.json",
+                "tests/test_parity_checkpoints.py",
+            ],
+        )
+        self.assertEqual(report["ci_deep"], [])
+
+    def test_product_and_architecture_authority_is_docs_owned(self):
+        report = route_paths(["product/PRD.md", "architecture/ARD.md", "ROADMAP.md"])
+        self.assertEqual(
+            report["docs_deep"],
+            ["ROADMAP.md", "architecture/ARD.md", "product/PRD.md"],
         )
         self.assertEqual(report["build_deep"], [])
 

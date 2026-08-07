@@ -19,7 +19,7 @@ The single runner writes one receipt per checkpoint plus an aggregate crown. The
 | Lane | Owned surfaces |
 | --- | --- |
 | `ci_deep` | `.github/**`, `scripts/ci_*.py`, `scripts/gall_*.py`, `tests/test_ci_*.py`, `docs/ci.md`, `docs/gall.md` |
-| `docs_deep` | `README.md`, `BOOTSTRAP.md`, `docs/**`, Markdown files |
+| `docs_deep` | `README.md`, `BOOTSTRAP.md`, `docs/**`, `product/**`, `architecture/**`, Markdown files |
 | `ontology_deep` | `ontology/**` |
 | `build_deep` | Cargo/toolchain files, `src/**`, `crates/**`, non-CI tests, examples, benches, fixtures, and unknown future surfaces |
 
@@ -36,4 +36,20 @@ HEAD_SHA="$(git rev-parse HEAD)"
 BASE_SHA="$(git rev-parse HEAD^)"
 python3 scripts/ci_admit.py --base "$BASE_SHA" --head "$HEAD_SHA" --receipt /tmp/ci-errc-receipt.json
 python3 scripts/gall_checkpoint.py --checkpoint all --base "$BASE_SHA" --head "$HEAD_SHA" --receipt /tmp/gall-crown.json
+```
+
+## Hygen parity Gall crown
+
+Documentation and example changes are not admitted by UTF-8 checks alone. When `scripts/gall_hygen_parity.py` is present:
+
+- `docs_deep` executes the G0–G7 crown so prose cannot drift from the pinned example;
+- `build_deep` executes the Python package (`pip install -e .`, full unit suite), `tests/test_parity_*.py`, and the hygen parity crown when present;
+- both lanes manufacture `gall-hygen-parity-receipt.json` with the pinned reference identity, checkpoint evidence, executable Hola consequence, replay digest, failures, and claim ceiling.
+
+Local replay:
+
+```sh
+python3 scripts/ci_admit.py --lane docs
+python3 scripts/ci_admit.py --lane build
+python3 scripts/gall_hygen_parity.py --root . --receipt gall-hygen-parity-receipt.json
 ```

@@ -25,6 +25,7 @@ CI_PYTHON = (
     "scripts/gall_contract.py",
     "scripts/gall_surfaces.py",
     "scripts/gall_checkpoint.py",
+    "scripts/gall_hygen_parity.py",
     "tests/test_ci_router.py",
     "tests/test_ci_gall.py",
 )
@@ -121,10 +122,17 @@ def _shape(root: Path) -> dict[str, Any]:
     readme = root / "README.md"
     if not readme.is_file() or not readme.read_text(encoding="utf-8").startswith("# ggen-create"):
         failures.append("README.md must identify ggen-create")
-    for required in ("docs", "ontology", "scripts", "tests", ".github/workflows"):
+    for required in ("docs", "ontology", "scripts", "tests", ".github/workflows", "src"):
         if not (root / required).is_dir():
             failures.append(f"missing required CI-owned surface: {required}")
-    for required_file in (*CI_PYTHON, "docs/ci.md", "docs/gall.md", ".github/workflows/ci.yml"):
+    for required_file in (
+        *CI_PYTHON,
+        "docs/ci.md",
+        "docs/gall.md",
+        ".github/workflows/ci.yml",
+        "pyproject.toml",
+        "src/ggen_create/__init__.py",
+    ):
         if not (root / required_file).is_file():
             failures.append(f"missing required evidence file: {required_file}")
     return _record("repository_shape", not failures, "; ".join(failures) or "required surfaces present")
@@ -152,6 +160,15 @@ def _lane(root: Path, lane: str) -> int:
                 root,
             )
         )
+        parity = root / "scripts/gall_hygen_parity.py"
+        if parity.is_file():
+            checks.append(
+                _run(
+                    "hygen_docs_gall",
+                    [sys.executable, str(parity.relative_to(root)), "--root", ".", "--receipt", "gall-hygen-parity-receipt.json"],
+                    root,
+                )
+            )
     elif lane == "ontology":
         checks.append(
             _run(
@@ -168,6 +185,33 @@ def _lane(root: Path, lane: str) -> int:
                 root,
             )
         )
+        if (root / "pyproject.toml").is_file():
+            checks += [
+                _run(
+                    "product_install",
+                    [sys.executable, "-m", "pip", "install", "-e", ".", "--quiet"],
+                    root,
+                ),
+                _run(
+                    "product_unit",
+                    [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
+                    root,
+                ),
+            ]
+        parity = root / "scripts/gall_hygen_parity.py"
+        if parity.is_file():
+            checks += [
+                _run(
+                    "hygen_parity_unit",
+                    [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_parity_*.py", "-v"],
+                    root,
+                ),
+                _run(
+                    "hygen_parity_gall",
+                    [sys.executable, str(parity.relative_to(root)), "--root", ".", "--receipt", "gall-hygen-parity-receipt.json"],
+                    root,
+                ),
+            ]
     print(json.dumps({"lane": lane, "checks": checks}, indent=2, sort_keys=True))
     return 0 if all(check["passed"] for check in checks) else 1
 
