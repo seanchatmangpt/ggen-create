@@ -30,12 +30,17 @@ already-registered agents together.
   the topology examines the very codebase it's built into. This leans toward Phase 9
   (self-hosting) in spirit, but is a legitimate and arguably stronger proof: real,
   non-fixture, non-tuned-against subject.
-- **Observation primitive**: `legacy.plan`'s `plan_legacy_factory()`
-  (`src/ggen_create/legacy_model.py`), already built and currently unused by any agent.
-  It's purpose-fit for "bounded manifest of an arbitrary repository, no seed or captured
-  session required" — a better match than forcing `receiver`'s existing `capture.inspect`
-  skill (which needs a hygen-create-style captured session: a seed word plus an explicit
-  file set) onto a ~50-file Python repository.
+- **Observation primitive**: `plan_legacy_factory()` (`src/ggen_create/legacy_model.py`,
+  the function underlying the existing `legacy.plan` skill), already built and reused
+  directly. It's purpose-fit for "bounded manifest of an arbitrary repository, no seed or
+  captured session required" — a better match than forcing `receiver`'s existing
+  `capture.inspect` skill (which needs a hygen-create-style captured session: a seed word
+  plus an explicit file set) onto a ~50-file Python repository. `receiver` gets a new
+  `topology.observe` skill that calls `plan_legacy_factory()` directly and wraps the
+  result into `AdmittedRepositoryObservation`, rather than dispatching through the
+  existing `legacy.plan` skill — that skill's own dispatch returns a raw manifest dict
+  scoped to `ggen-legacy`'s receiving-bundle flow, not the typed artifact this topology
+  needs.
 - **Correspondence approach**: digest-correspondence, not category-correspondence.
   `correspondence-analyst` re-walks the subject and diffs recomputed digests against the
   recorded observation, reusing the `equal`/`only_left`/`only_right`/`different` shape
@@ -100,21 +105,35 @@ correspondence re-walk, the same helpers `legacy_model.py` and `verify.py` alrea
 
 ## Skills (`src/ggen_create/skills.py`)
 
+- New `SkillSpec("topology.observe", authority="CONSTRUCT", requires_confirmation=False, requires_session=False, ...)` — calls `plan_legacy_factory()` directly, wraps into `AdmittedRepositoryObservation`.
 - New `SkillSpec("correspondence.analyze", authority="CONSTRUCT", requires_confirmation=False, requires_session=False, ...)` — pure inspection, no actuation.
 - New `SkillSpec("admission.decide", authority="SELECT", requires_confirmation=False, requires_session=False, ...)` — a verdict, not actuation.
-- `receiver`'s skill tuple gains `legacy.plan` (already exists as a skill; currently
-  unwired to any agent).
+- `receiver`'s skill tuple gains `topology.observe`.
 - `correspondence-analyst`'s skill tuple gains `correspondence.analyze`.
 - `admission-referee`'s skill tuple gains `admission.decide`.
-- Two new `Broker._dispatch` branches calling into `topology.py`'s functions, following
+- Three new `Broker._dispatch` branches calling into `topology.py`'s functions, following
   the existing dispatch-table pattern.
 
 ## Router (`src/ggen_create/agents.py`)
 
-Add keyword rules to `AgentRuntime.route()` reaching `correspondence-analyst` (e.g.
-`"correspondence"`, `"analyze candidate"`) and `admission-referee` (e.g. `"admit"`,
-`"admission"`, `"refuse candidate"`) — both are currently dead ends in the deterministic
-router (only reachable via direct `plan()`/`dispatch()` with an explicit agent name).
+Both `correspondence-analyst` and `admission-referee` are currently dead ends in the
+deterministic router (only reachable via direct `plan()`/`dispatch()` with an explicit
+agent name). Add two rules to the `routes` tuple in `AgentRuntime.route()`
+(`src/ggen_create/agents.py`), checked against every existing rule for collisions —
+none of the keywords below appear in any current rule's token set:
+
+```python
+(
+    ("correspondence", "analyze candidate"),
+    "correspondence-analyst",
+    "correspondence.analyze",
+),
+(
+    ("admission", "admit", "refuse candidate"),
+    "admission-referee",
+    "admission.decide",
+),
+```
 
 ## Held-out replay evidence
 
@@ -153,7 +172,7 @@ root vanished between hops, `TOPOLOGY_OBSERVATION_SCHEMA_MISMATCH_REFUSED` if
 ## Files touched
 
 - **New**: `src/ggen_create/topology.py`, `tests/test_topology.py`
-- **Edited**: `src/ggen_create/skills.py` (2 new `SkillSpec`s, 2 new `Broker._dispatch`
+- **Edited**: `src/ggen_create/skills.py` (3 new `SkillSpec`s, 3 new `Broker._dispatch`
   branches, 3 agents' skill tuples), `src/ggen_create/agents.py` (router keyword rules),
   `src/ggen_create/selfplay.py` (4 new scenarios)
 
@@ -163,8 +182,9 @@ root vanished between hops, `TOPOLOGY_OBSERVATION_SCHEMA_MISMATCH_REFUSED` if
 2. `python3 -m unittest discover -s tests -v` — full suite green, no regressions.
 3. Run `selfplay.run` (via CLI or directly) — confirm the 4 new scenarios pass, including
    the real `PARTIAL_ALIVE` blockers finding against `ggen-create`'s own repo.
-4. Confirm `agents.route("analyze correspondence")` and `agents.route("admit candidate")`
-   (or whatever exact keywords land) now resolve instead of raising
+4. Confirm `agents.route("analyze correspondence")` resolves to `correspondence-analyst`/
+   `correspondence.analyze`, and `agents.route("admit candidate")` resolves to
+   `admission-referee`/`admission.decide` — both previously raised
    `AGENT_ROUTE_UNSUPPORTED`.
 5. Update `ROADMAP.md`'s Phase 5 state line from "introduce only after..." to reflect
    admission — only after the above is verified green, not preemptively (same discipline
@@ -177,6 +197,7 @@ root vanished between hops, `TOPOLOGY_OBSERVATION_SCHEMA_MISMATCH_REFUSED` if
 - Wiring this topology into CI. Like the P7 crown and submodule parity checkpoints, this
   stays a local/selfplay-level capability for now; CI wiring (if warranted) is a separate,
   later decision once the topology itself has real evidence behind it.
-- Changing `capture.inspect`'s existing behavior or `receiver`'s prior skill scoping —
-  `legacy.plan` is additive, not a replacement.
+- Changing `capture.inspect`'s or `legacy.plan`'s existing behavior, dispatch, or callers
+  — `topology.observe` is a new, additive skill that reuses `plan_legacy_factory()` as a
+  function call, not a change to either existing skill.
 - Category/semantic correspondence checks (rejected alternative, see Decisions above).
