@@ -164,6 +164,8 @@ Package law:
 
 Reconstruct original exemplars, exercise changed parameters, execute behavioral obligations, and issue receipts.
 
+Chicago-school JTBD acceptance tests in `tests/test_jtbd.py` validate these jobs through the public CLI boundary (`python -m ggen_create`), observing filesystem and process consequences rather than internal module state.
+
 v26.8.6 requires two verification rails:
 
 | Rail | Purpose | Crown |

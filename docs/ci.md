@@ -52,4 +52,5 @@ Local replay:
 python3 scripts/ci_admit.py --lane docs
 python3 scripts/ci_admit.py --lane build
 python3 scripts/gall_hygen_parity.py --root . --receipt gall-hygen-parity-receipt.json
+python3 -m unittest discover -s tests -p 'test_jtbd*.py' -v
 ```
