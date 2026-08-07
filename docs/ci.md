@@ -37,3 +37,19 @@ BASE_SHA="$(git rev-parse HEAD^)"
 python3 scripts/ci_admit.py --base "$BASE_SHA" --head "$HEAD_SHA" --receipt /tmp/ci-errc-receipt.json
 python3 scripts/gall_checkpoint.py --checkpoint all --base "$BASE_SHA" --head "$HEAD_SHA" --receipt /tmp/gall-crown.json
 ```
+
+## Hygen parity Gall crown
+
+Documentation and example changes are not admitted by UTF-8 checks alone. When `scripts/gall_hygen_parity.py` is present:
+
+- `docs_deep` executes the G0–G7 crown so prose cannot drift from the pinned example;
+- `build_deep` executes `tests/test_parity_*.py` and the same crown so fixtures and unit behavior cannot diverge;
+- both lanes manufacture `gall-hygen-parity-receipt.json` with the pinned reference identity, checkpoint evidence, executable Hola consequence, replay digest, failures, and claim ceiling.
+
+Local replay:
+
+```sh
+python3 scripts/ci_admit.py --lane docs
+python3 scripts/ci_admit.py --lane build
+python3 scripts/gall_hygen_parity.py --root . --receipt gall-hygen-parity-receipt.json
+```

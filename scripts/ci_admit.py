@@ -25,6 +25,7 @@ CI_PYTHON = (
     "scripts/gall_contract.py",
     "scripts/gall_surfaces.py",
     "scripts/gall_checkpoint.py",
+    "scripts/gall_hygen_parity.py",
     "tests/test_ci_router.py",
     "tests/test_ci_gall.py",
 )
@@ -152,6 +153,15 @@ def _lane(root: Path, lane: str) -> int:
                 root,
             )
         )
+        parity = root / "scripts/gall_hygen_parity.py"
+        if parity.is_file():
+            checks.append(
+                _run(
+                    "hygen_docs_gall",
+                    [sys.executable, str(parity.relative_to(root)), "--root", ".", "--receipt", "gall-hygen-parity-receipt.json"],
+                    root,
+                )
+            )
     elif lane == "ontology":
         checks.append(
             _run(
@@ -168,6 +178,20 @@ def _lane(root: Path, lane: str) -> int:
                 root,
             )
         )
+        parity = root / "scripts/gall_hygen_parity.py"
+        if parity.is_file():
+            checks += [
+                _run(
+                    "hygen_parity_unit",
+                    [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_parity_*.py", "-v"],
+                    root,
+                ),
+                _run(
+                    "hygen_parity_gall",
+                    [sys.executable, str(parity.relative_to(root)), "--root", ".", "--receipt", "gall-hygen-parity-receipt.json"],
+                    root,
+                ),
+            ]
     print(json.dumps({"lane": lane, "checks": checks}, indent=2, sort_keys=True))
     return 0 if all(check["passed"] for check in checks) else 1
 

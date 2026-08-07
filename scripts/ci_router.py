@@ -40,6 +40,7 @@ def _is_ci(path: str) -> bool:
             "scripts/gall_contract.py",
             "scripts/gall_surfaces.py",
             "scripts/gall_checkpoint.py",
+            "scripts/gall_hygen_parity.py",
             "docs/ci.md",
             "docs/gall.md",
         }

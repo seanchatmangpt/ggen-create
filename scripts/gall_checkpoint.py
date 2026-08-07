@@ -57,7 +57,7 @@ def probe_ci(context: Context) -> dict[str, Any]:
         [
             sys.executable, "-m", "py_compile",
             "scripts/ci_router.py", "scripts/ci_admit.py", "scripts/gall_contract.py",
-            "scripts/gall_surfaces.py", "scripts/gall_checkpoint.py",
+            "scripts/gall_surfaces.py", "scripts/gall_checkpoint.py", "scripts/gall_hygen_parity.py",
             "tests/test_ci_router.py", "tests/test_ci_gall.py",
         ],
         ["ruby", "-e", "require 'yaml'; YAML.parse_file(ARGV.fetch(0))", ".github/workflows/ci.yml"],

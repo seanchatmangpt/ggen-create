@@ -23,3 +23,4 @@ target
 # Python CI tooling
 __pycache__/
 *.py[cod]
+gall-hygen-parity-receipt.json
