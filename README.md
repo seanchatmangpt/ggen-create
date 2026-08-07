@@ -31,7 +31,7 @@ python3 scripts/gall_hygen_parity.py --root . --receipt gall-hygen-parity-receip
 python3 -m unittest discover -s tests -p 'test_parity_*.py' -v
 ```
 
-See [the complete parity guide](docs/hygen-create-parity.md) and [CI evidence architecture](docs/ci.md).
+See [the complete parity guide](docs/hygen-create-parity.md), [CI evidence architecture](docs/ci.md), [product requirements](product/PRD.md), and [architecture requirements](architecture/ARD.md).
 
 ## Standing
 

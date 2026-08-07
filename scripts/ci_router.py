@@ -49,7 +49,11 @@ def _is_ci(path: str) -> bool:
 
 
 def _is_docs(path: str) -> bool:
-    return path in {"README.md", "BOOTSTRAP.md"} or path.startswith("docs/") or path.endswith(".md")
+    return (
+        path in {"README.md", "BOOTSTRAP.md", "ROADMAP.md"}
+        or path.startswith(("docs/", "product/", "architecture/"))
+        or path.endswith(".md")
+    )
 
 
 def _is_ontology(path: str) -> bool:

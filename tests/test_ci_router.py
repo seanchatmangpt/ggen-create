@@ -72,6 +72,14 @@ class RouterTests(unittest.TestCase):
         )
         self.assertEqual(report["ci_deep"], [])
 
+    def test_product_and_architecture_authority_is_docs_owned(self):
+        report = route_paths(["product/PRD.md", "architecture/ARD.md", "ROADMAP.md"])
+        self.assertEqual(
+            report["docs_deep"],
+            ["ROADMAP.md", "architecture/ARD.md", "product/PRD.md"],
+        )
+        self.assertEqual(report["build_deep"], [])
+
     def test_deep_lane_owned_change(self):
         self.assertEqual(route_paths(["ontology/schema.ttl"])["ontology_deep"], ["ontology/schema.ttl"])
 

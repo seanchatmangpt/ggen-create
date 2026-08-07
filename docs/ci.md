@@ -19,7 +19,7 @@ The single runner writes one receipt per checkpoint plus an aggregate crown. The
 | Lane | Owned surfaces |
 | --- | --- |
 | `ci_deep` | `.github/**`, `scripts/ci_*.py`, `scripts/gall_*.py`, `tests/test_ci_*.py`, `docs/ci.md`, `docs/gall.md` |
-| `docs_deep` | `README.md`, `BOOTSTRAP.md`, `docs/**`, Markdown files |
+| `docs_deep` | `README.md`, `BOOTSTRAP.md`, `docs/**`, `product/**`, `architecture/**`, Markdown files |
 | `ontology_deep` | `ontology/**` |
 | `build_deep` | Cargo/toolchain files, `src/**`, `crates/**`, non-CI tests, examples, benches, fixtures, and unknown future surfaces |
 
