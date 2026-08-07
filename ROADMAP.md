@@ -34,7 +34,11 @@ Not delivered:
 
 ## Phase 1 — Deterministic parity core
 
-**State: IMPLEMENTED locally; external exact-head P7 crown remains the GA gate.**
+**State: IMPLEMENTED locally; P0-P6 proven against a real `ggen` binary locally
+(`scripts/gall_ggen_binary_parity.py`, GB0-GB3, `ALIVE`); external exact-head P7 crown
+remains the GA gate.** P7 additionally requires a `reference_dir` produced by the real
+upstream `hygen` render step under exact-head CI — not yet attempted; see the "80/20 ERRC"
+section below.
 
 Required implementation without agents:
 
@@ -222,3 +226,31 @@ implementations of skills, agents, MCP, A2A, and autonomic modules (exercised lo
 `selfplay.py` and unit tests) — their presence is not itself a claim of standing; no GALL
 checkpoint currently admits them, and Phase 5's agent topology gate (external crown green)
 still applies before any of them may be promoted to `ALIVE`.
+
+## 80/20 ERRC — v26.8.6 priorities
+
+`src/ggen_create/` is roughly 7,100 lines. About 61% of it — `a2a.py`, `a2a_runtime.py`, the
+task-store half of `runtime.py`, `mcp.py`, `mcp_services.py`, `skills.py`, `agents.py`,
+`automatic.py`, `autonomic.py`, `selfplay.py` — is real, tested code that the claim ceiling above
+says holds no admitted standing until Phase 5, itself gated on Phase 1's P7 crown. The gate
+itself is narrow: `P7_PARITY_CROWN` in `src/ggen_create/verify.py` is ~55 lines. Applying the same
+Eliminate/Reduce/Raise/Create lens used for CI (`scripts/ci_admit.py`) to that imbalance:
+
+- **Eliminate** — no code deletion; a stated moratorium instead. No new features land in
+  skills/agents/MCP/A2A/autonomic modules until Phase 1's external crown is green. This restates
+  the Phase 5 gate as a priority decision, not just a standing rule.
+- **Reduce** — hold the existing unit/`selfplay.py` coverage on that 61% at its current level
+  (prevent bit-rot) without expanding it further for now. Also: the `SM1_UPSTREAM_TEST_SUITE`
+  finding in `scripts/gall_submodule_parity.py` (upstream's 2018-era `mock-fs` suite fails under
+  modern Node) is a reduce candidate — not worth chasing a fix upstream itself doesn't need.
+- **Raise** — prove `verify_parity` actually works against a **real** `ggen` binary. This was
+  previously assumed blocked (`README.md`/`PRD.md` mark P7 `UNKNOWN`, nothing in the repo
+  provisions a `ggen` binary), but a working `ggen 26.8.6` binary already exists locally
+  (`/Users/sac/.cargo/bin/ggen`) and P0-P6 have never actually been exercised against it. That's
+  immediately testable, independent of the harder problem below.
+- **Create** — `scripts/gall_ggen_binary_parity.py` (GB0-GB3): an opt-in local checkpoint proving
+  real-`ggen`-binary execution, mirroring the vendor/validate-it/validate-us pattern already used
+  for hygen-create in `scripts/gall_submodule_parity.py`. Scoped to P0-P6 only — full
+  `P7_PARITY_CROWN: ALIVE` additionally needs a `reference_dir` produced by the real upstream
+  `hygen` render step (a separate npm package from `hygen-create`, which only captures and
+  templatizes), which is a materially larger follow-on, deliberately not attempted here.

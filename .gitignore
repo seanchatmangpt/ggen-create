@@ -28,4 +28,5 @@ dist/
 build/
 gall-hygen-parity-receipt.json
 submodule-parity-receipt.json
+ggen-binary-parity-receipt.json
 parity-report.json

@@ -200,3 +200,52 @@ monkey-patches have since changed) — `tsc` builds cleanly, but `jest` fails a 
 suites under current Node. This is a real, typed result about the upstream project's test
 tooling, not a ggen-create defect, and is exactly the kind of drift this checkpoint exists
 to surface rather than hide.
+
+## Real-`ggen`-binary validation (opt-in)
+
+Every checkpoint above — G0-G7 and SM0-SM3 — either compares static fixtures against a
+manifest, or reconstructs trees with ggen-create's own Python transform logic
+(`manufacture()`). None of them invoke a real `ggen` binary. `src/ggen_create/verify.py`'s
+P0-P7 pipeline has real-binary support (`_run_ggen` shells out to `ggen_bin`), but nothing
+in the repo had ever exercised it — README/ROADMAP/PRD all mark
+`real public ggen parity crown (P7)` as `UNKNOWN`, and no `ggen` binary is provisioned
+anywhere in this repo or its CI.
+
+`scripts/gall_ggen_binary_parity.py` closes that specific, narrow gap: it builds a real
+ggen-create session from the live `vendor/hygen-create` submodule, then calls
+`verify_parity` against a real `ggen` binary on the machine running it.
+
+| Checkpoint | Object | Required consequence |
+| --- | --- | --- |
+| GB0 | binary availability | a real `ggen` binary resolves and reports a version |
+| GB1 | session capture | a ggen-create session is captured from the live submodule example |
+| GB2 | real sync run | `verify_parity` reaches `P6_REVISION_PARITY: ALIVE` against the real binary, with `P7_PARITY_CROWN` correctly staying `PARTIAL_ALIVE` (no crown claimed) |
+| GB3 | report shape | `parity-report.json` is actually written and its `ggen.binary`/`ggen.sync_args` fields reflect the real subprocess invocation |
+
+**This does not close the P7 crown.** `P7_PARITY_CROWN: ALIVE` additionally requires a
+`reference_dir` produced by the real upstream `hygen` render step — a separate npm package
+from `hygen-create`, which only captures and templatizes, not renders. That's a
+materially larger follow-on than "run the ggen binary once" and is deliberately not
+attempted here. See `ROADMAP.md`'s "80/20 ERRC" section for how this is scoped.
+
+Opt-in like the submodule checkpoint above: requires both `vendor/hygen-create`
+initialized and a real `ggen` binary on `PATH` (or `$GGEN_BIN`). Not part of the default
+GALL crown or CI.
+
+Run it directly:
+
+```sh
+git submodule update --init vendor/hygen-create
+python3 scripts/gall_ggen_binary_parity.py \
+  --root . \
+  --receipt ggen-binary-parity-receipt.json
+```
+
+Run the unit binding:
+
+```sh
+python3 -m unittest discover -s tests -p 'test_ggen_binary_parity.py' -v
+```
+
+If either the submodule or a real `ggen` binary is missing, `test_ggen_binary_parity.py`
+skips cleanly rather than failing.
