@@ -10,7 +10,7 @@
 
 ## Status
 
-Architecture authority admitted. Documentation parity rail implemented. Product runtime specified, not yet admitted on `main`.
+Architecture authority admitted. Documentation parity rail implemented. Product runtime (CLI and package build) admitted on `main` with local unit evidence; the external P7 crown against a real `ggen` binary and upstream `hygen-create` remains `UNKNOWN`.
 
 ## Document law
 

@@ -10,7 +10,7 @@
 
 ## Status
 
-Authority admitted. Parity contract executable. Product runtime not yet admitted on `main`.
+Authority admitted. Parity contract executable. Product runtime (CLI and package build) admitted on `main` with local unit evidence; the external P7 crown against a real `ggen` binary and upstream `hygen-create` remains `UNKNOWN`.
 
 ## Document law
 
@@ -266,7 +266,10 @@ stdout = Hola!
 - treating Markdown skill projections as canonical skill authority;
 - claiming parity from source inspection alone;
 - claiming generalization from reconstruction alone;
-- MCP, A2A, automatic, or autonomic controllers;
+- releasing MCP, A2A, automatic, or autonomic controllers as admitted v26.8.6 standing
+  (implementations exist in `src/ggen_create/` and are exercised by local unit tests and
+  `selfplay.py`, but hold no GALL-admitted standing and are not claimed as delivered capability
+  of this release);
 - enterprise `ggen-legacy` repository archaeology.
 
 ## Success criteria

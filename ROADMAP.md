@@ -22,9 +22,14 @@ Delivered in v26.8.6:
 - path-owned deep lanes for CI, docs, ontology, and build evidence;
 - roadmap and README standing model.
 
+Delivered since, with local unit evidence only:
+
+- `ggen-create` Python package on `main` (CLI, package build, skills/agents/MCP/A2A/autonomic
+  modules); standing for the latter five is `UNKNOWN` — present in the tree but not claimed
+  under the v26.8.6 claim ceiling (see below).
+
 Not delivered:
 
-- `ggen-create` Python package on `main`;
 - public `ggen` parity execution under exact-head CI.
 
 ## Phase 1 — Deterministic parity core
@@ -211,4 +216,9 @@ After product parity GA:
 HYGEN_CREATE_PARITY_ALIVE
 ```
 
-Nothing in v26.8.6 may claim `GGEN_CREATE_PACKAGE_ALIVE`, skills, agents, MCP, A2A, or autonomic control.
+Nothing in v26.8.6 may claim `GGEN_CREATE_PACKAGE_ALIVE`, skills, agents, MCP, A2A, or autonomic
+control as standing under exact-head CI. The `src/ggen_create/` tree already contains
+implementations of skills, agents, MCP, A2A, and autonomic modules (exercised locally by
+`selfplay.py` and unit tests) — their presence is not itself a claim of standing; no GALL
+checkpoint currently admits them, and Phase 5's agent topology gate (external crown green)
+still applies before any of them may be promoted to `ALIVE`.
