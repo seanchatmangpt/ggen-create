@@ -43,7 +43,7 @@ python3 scripts/gall_checkpoint.py --checkpoint all --base "$BASE_SHA" --head "$
 Documentation and example changes are not admitted by UTF-8 checks alone. When `scripts/gall_hygen_parity.py` is present:
 
 - `docs_deep` executes the G0–G7 crown so prose cannot drift from the pinned example;
-- `build_deep` executes `tests/test_parity_*.py` and the same crown so fixtures and unit behavior cannot diverge;
+- `build_deep` executes the Python package (`pip install -e .`, full unit suite), `tests/test_parity_*.py`, and the hygen parity crown when present;
 - both lanes manufacture `gall-hygen-parity-receipt.json` with the pinned reference identity, checkpoint evidence, executable Hola consequence, replay digest, failures, and claim ceiling.
 
 Local replay:

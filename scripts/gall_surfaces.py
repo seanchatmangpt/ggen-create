@@ -73,27 +73,50 @@ def scan_ontology(root: Path) -> dict[str, Any]:
 
 
 def scan_build(root: Path) -> dict[str, Any]:
-    if not (root / "Cargo.toml").is_file():
-        candidates = (root / "Cargo.lock", root / "build.rs", root / "src", root / "crates")
-        orphans = [str(path.relative_to(root)) for path in candidates if path.exists()]
-        if orphans:
-            raise CheckpointFailure("BUILD_BROKEN:ORPHAN_BUILD_SURFACE", ",".join(orphans))
-        return {"mode": "bootstrap-absence", "manifest": None, "orphan_surfaces": []}
-    if not shutil.which("cargo"):
-        raise CheckpointFailure("UNSUPPORTED:CARGO_MISSING", "Cargo.toml exists but cargo is unavailable")
-    commands = [
-        ["cargo", "fmt", "--all", "--", "--check"],
-        ["cargo", "check", "--workspace", "--all-targets"],
-        ["cargo", "test", "--workspace", "--all-targets"],
-    ]
-    for index, command in enumerate(commands):
-        completed = run(command, root)
-        if completed.returncode:
-            raise CheckpointFailure(
-                f"BUILD_BROKEN:BUILD_COMMAND_{index}_FAILED",
-                (completed.stderr or completed.stdout)[-4000:],
-            )
-    return {"mode": "cargo", "manifest": "Cargo.toml", "commands": commands}
+    if (root / "Cargo.toml").is_file():
+        if not shutil.which("cargo"):
+            raise CheckpointFailure("UNSUPPORTED:CARGO_MISSING", "Cargo.toml exists but cargo is unavailable")
+        commands = [
+            ["cargo", "fmt", "--all", "--", "--check"],
+            ["cargo", "check", "--workspace", "--all-targets"],
+            ["cargo", "test", "--workspace", "--all-targets"],
+        ]
+        for index, command in enumerate(commands):
+            completed = run(command, root)
+            if completed.returncode:
+                raise CheckpointFailure(
+                    f"BUILD_BROKEN:BUILD_COMMAND_{index}_FAILED",
+                    (completed.stderr or completed.stdout)[-4000:],
+                )
+        return {"mode": "cargo", "manifest": "Cargo.toml", "commands": commands}
+
+    if (root / "pyproject.toml").is_file() and (root / "src").is_dir():
+        if os.environ.get("GGEN_CREATE_BUILD_SCAN") == "1":
+            return {
+                "mode": "python-package",
+                "manifest": "pyproject.toml",
+                "commands": [],
+                "reentrant": True,
+            }
+        env = {**os.environ, "GGEN_CREATE_BUILD_SCAN": "1", "PYTHONDONTWRITEBYTECODE": "1"}
+        commands = [
+            [sys.executable, "-m", "pip", "install", "-e", ".", "--quiet"],
+            [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
+        ]
+        for index, command in enumerate(commands):
+            completed = run(command, root, env=env)
+            if completed.returncode:
+                raise CheckpointFailure(
+                    f"BUILD_BROKEN:BUILD_COMMAND_{index}_FAILED",
+                    (completed.stderr or completed.stdout)[-4000:],
+                )
+        return {"mode": "python-package", "manifest": "pyproject.toml", "commands": commands}
+
+    candidates = (root / "Cargo.lock", root / "build.rs", root / "src", root / "crates")
+    orphans = [str(path.relative_to(root)) for path in candidates if path.exists()]
+    if orphans:
+        raise CheckpointFailure("BUILD_BROKEN:ORPHAN_BUILD_SURFACE", ",".join(orphans))
+    return {"mode": "bootstrap-absence", "manifest": None, "orphan_surfaces": []}
 
 
 def expect_failure(call: Callable[[], Any], code: str) -> dict[str, Any]:

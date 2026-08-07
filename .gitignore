@@ -23,4 +23,8 @@ target
 # Python CI tooling
 __pycache__/
 *.py[cod]
+*.egg-info/
+dist/
+build/
 gall-hygen-parity-receipt.json
+parity-report.json

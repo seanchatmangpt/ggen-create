@@ -86,7 +86,11 @@ class GallContractTests(unittest.TestCase):
                 _scan_ontology(root)
             self.assertEqual(caught.exception.code, "BUILD_BROKEN:ONTOLOGY_SURFACE")
 
-    def test_build_bootstrap_absence_is_bounded(self):
+    def test_python_package_build_is_admitted(self) -> None:
+        self.assertTrue((ROOT / "pyproject.toml").is_file())
+        self.assertTrue((ROOT / "src/ggen_create/cli.py").is_file())
+
+    def test_build_bootstrap_absence_is_bounded(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             observation = _scan_build(Path(directory))
             self.assertEqual(observation["mode"], "bootstrap-absence")

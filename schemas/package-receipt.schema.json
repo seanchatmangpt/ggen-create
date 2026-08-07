@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ggen.io/schemas/ggen-create/package-receipt.schema.json",
+  "title": "ggen-create package receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "algorithm",
+    "operation",
+    "generator",
+    "parameter_value",
+    "parent",
+    "files",
+    "receipt_digest"
+  ],
+  "properties": {
+    "schema": {"const": "ggen-create-package-receipt/0.2"},
+    "algorithm": {"const": "sha256"},
+    "operation": {
+      "enum": ["package-build", "parameter-rewrite"]
+    },
+    "generator": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 _.-]{0,126}[A-Za-z0-9])?$"
+    },
+    "parameter_value": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 _.-]{0,126}[A-Za-z0-9])?$"
+    },
+    "parent": {
+      "type": ["string", "null"],
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "files": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "not": {
+          "pattern": "(^[\\\\/])|(^[A-Za-z]:)|((^|[\\\\/])\\.\\.([\\\\/]|$))|\\u0000"
+        }
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      }
+    },
+    "receipt_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}
