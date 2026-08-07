@@ -69,3 +69,22 @@ python3 scripts/ci_admit.py --lane docs
 python3 scripts/ci_admit.py --lane build
 python3 scripts/gall_hygen_parity.py --root . --receipt gall-hygen-parity-receipt.json
 ```
+
+## P7 parity crown (push-to-main only)
+
+`.github/workflows/ci.yml`'s `p7-crown` job closes the real `HYGEN_CREATE_PARITY_ALIVE` gate:
+real `ggen` binary + real, independent upstream `hygen` render, byte-exact comparison
+(`scripts/gall_p7_crown.py`, checkpoints PC0–PC3 — see `docs/hygen-create-parity.md`).
+
+Unlike every other job above, this one runs only on `push` to `main`, not on every PR — it
+downloads a pinned `ggen` release binary from `seanchatmangpt/ggen` (checksum-verified) and
+does a full Node/npm/yarn install to drive the real `hygen` renderer, real network/time cost
+that would otherwise slow every PR. It re-certifies the crown whenever `main` actually
+changes, uploading `p7-crown-receipt.json` as a workflow artifact.
+
+Local replay:
+
+```sh
+git submodule update --init vendor/hygen-create
+python3 scripts/gall_p7_crown.py --root . --receipt p7-crown-receipt.json
+```

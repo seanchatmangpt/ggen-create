@@ -163,3 +163,56 @@ jobs:
           path: gall-hygen-parity-receipt.json
           if-no-files-found: error
           retention-days: 14
+
+  p7-crown:
+    name: P7 parity crown (real ggen + real hygen)
+    # Push-to-main only, not every PR: this job downloads a ggen release binary and does
+    # a full npm/yarn install to drive the real, independent hygen renderer - real time
+    # and network cost per run. Re-certifies HYGEN_CREATE_PARITY_ALIVE whenever main
+    # actually changes, which is what GALL's exact-head requirement cares about; PR
+    # feedback stays on the fast admission/gall-crown/deep-lane jobs above.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: {contents: read}
+    env:
+      GGEN_VERSION: "v26.8.6"
+      GGEN_ASSET: "ggen-x86_64-unknown-linux-gnu.tar.gz"
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: true
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: {node-version: "20"}
+      - name: Download and verify pinned ggen release binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "$GGEN_VERSION" -R seanchatmangpt/ggen \
+            -p "$GGEN_ASSET" -p "$GGEN_ASSET.sha256" -D "$RUNNER_TEMP/ggen-dl"
+          cd "$RUNNER_TEMP/ggen-dl"
+          sha256sum -c "$GGEN_ASSET.sha256"
+          tar -xzf "$GGEN_ASSET"
+          chmod +x ggen
+          echo "$RUNNER_TEMP/ggen-dl" >> "$GITHUB_PATH"
+      - name: Verify ggen binary resolves
+        run: ggen --version
+      - name: Run the P7 parity crown
+        run: >-
+          python3 scripts/gall_p7_crown.py
+          --root .
+          --receipt "$RUNNER_TEMP/p7-crown-receipt.json"
+      - name: Upload P7 crown receipt
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: p7-crown-${{ github.sha }}
+          path: ${{ runner.temp }}/p7-crown-receipt.json
+          if-no-files-found: error
+          retention-days: 14
