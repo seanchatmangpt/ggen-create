@@ -52,6 +52,8 @@ ggen-create CLI and package runtime:        ALIVE (local unit evidence)
 real public ggen parity crown (P7):         ALIVE (real ggen + real upstream hygen render,
                                              exact-head CI: scripts/gall_p7_crown.py, run
                                              31216549992)
+minimal agent topology (Phase 5):           ALIVE (real typed artifacts + decision logic,
+                                             held-out replay: src/ggen_create/topology.py)
 ```
 
 `HYGEN_CREATE_PARITY_ALIVE` is admitted: `real ggen 26.8.6` reconstructs `Hello` and

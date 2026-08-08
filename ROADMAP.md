@@ -2,7 +2,8 @@
 
 ## Version anchor
 
-Current authority release: `v26.8.6`
+Current authority release: `v26.8.7`. `v26.8.6` remains the historical record of that
+release's own scope and claims below — not rewritten, only superseded.
 
 Normative documents:
 
@@ -137,13 +138,20 @@ BOUNDED_VARIATION_ALIVE
 
 ## Phase 5 — Minimal agent topology
 
-Introduce only after Phase 1's external crown is green:
+**State: ALIVE (v26.8.7).** `receiver`, `correspondence-analyst`, and `admission-referee`
+carry real typed artifacts (`AdmittedRepositoryObservation`, `CandidateCorrespondenceGraph`,
+`AdmissionDecision` — `src/ggen_create/topology.py`) and real decision logic (digest-
+correspondence + blockers-gated ADMITTED/PARTIAL_ALIVE/REFUSED), not just registration.
+Held-out replay evidence: `selfplay.py`'s `topology-chain-*` scenarios run the full chain
+against `ggen-create`'s own repository as subject (a real, external, not-tuned-against
+target) — deterministic replay across two independent runs, an honest non-forced
+`PARTIAL_ALIVE` finding (this repo genuinely lacks `AGENTS.md`/`RELEASE_CONTROL.md`/
+`ggen.toml`), and a real `REFUSED` on tampered-observation drift. Full suite: 106/106
+(1 pre-existing, unrelated skip).
 
-- receiver;
-- correspondence analyst;
-- admission-referee.
-
-No additional agents until this topology has held-out replay evidence.
+No additional agents until this topology has held-out replay evidence — that gate is now
+met for these three; the remaining 6 agents in `agents.py` stay unadmitted per the
+`v26.8.7` claim ceiling below.
 
 ## Phase 6 — Native package architecture
 
@@ -221,6 +229,25 @@ implementations of skills, agents, MCP, A2A, and autonomic modules (exercised lo
 `selfplay.py` and unit tests) — their presence is not itself a claim of standing; no GALL
 checkpoint currently admits them, and Phase 5's agent topology gate (external crown green)
 still applies before any of them may be promoted to `ALIVE`.
+
+## v26.8.7 claim ceiling
+
+Phase 5's minimal agent topology is admitted with held-out replay evidence (see Phase 5
+above):
+
+```text
+MINIMAL_AGENT_TOPOLOGY_ALIVE
+```
+
+Scoped narrowly to exactly three agents and their skills: `receiver` (`topology.observe`,
+`capture.inspect`), `correspondence-analyst` (`correspondence.analyze`, `capture.inspect`,
+`automatic.plan`), `admission-referee` (`admission.decide`, plus its prior verify/inspect
+skill set). Nothing else changes: the other 6 registered agents
+(`manufacturing-architect`, `verification-architect`, `skill-architect`,
+`topology-architect`, `adversarial-verifier`, `certifier`) and full MCP/A2A/automatic/
+autonomic controller standing remain exactly as scoped under the `v26.8.6` claim ceiling
+above — still no admitted standing under exact-head CI, still not claimed as delivered
+release capability.
 
 ## 80/20 ERRC — v26.8.6 priorities
 

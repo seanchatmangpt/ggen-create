@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ggen-create"
-version = "26.8.6"
+version = "26.8.7"
 description = "Automatic and autonomic exemplar-to-ggen factory compiler with MCP and A2A"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -6,15 +6,15 @@
 
 ## Version
 
-`v26.8.6`
+`v26.8.7`
 
 ## Status
 
-Architecture authority admitted. Documentation parity rail implemented. Product runtime (CLI and package build) admitted on `main` with local unit evidence; the external P7 crown against a real `ggen` binary and upstream `hygen-create` remains `UNKNOWN`.
+Architecture authority admitted. Documentation parity rail implemented. Product runtime (CLI and package build) admitted on `main` with local unit evidence. The external P7 crown against a real `ggen` binary and upstream `hygen-create` render is `ALIVE`, published under exact-head CI (`.github/workflows/ci.yml`'s `p7-crown` job, push-to-main). The minimal agent topology (`receiver`/`correspondence-analyst`/`admission-referee`) is `ALIVE` with held-out replay evidence — see "Handoff topology" below.
 
 ## Document law
 
-This ARD is the architecture authority for `ggen-create v26.8.6`. It binds system boundaries, component responsibilities, object model, security refusals, and determinism law. Product behavior is normative in `product/PRD.md`; this document explains how that behavior is manufactured and verified.
+This ARD is the architecture authority for `ggen-create v26.8.7`. It binds system boundaries, component responsibilities, object model, security refusals, and determinism law. Product behavior is normative in `product/PRD.md`; this document explains how that behavior is manufactured and verified. Sentences elsewhere in this document scoped to a specific prior version (e.g. "v26.8.6 does not admit skills or agents") are that version's historical record and are not rewritten by later releases — later sections state the current, superseding standing explicitly.
 
 ## System boundary
 
@@ -81,7 +81,8 @@ Verification may subprocess public `ggen` inside isolated staging. That actuatio
 | structural anti-unification | Tree-sitter per-language admission |
 | multi-parameter collision law | Phase 2 |
 | multi-exemplar variation axes | Phase 4 |
-| skills and agents | Phase 5+ |
+| skills and agents (full topology, 6 remaining agents) | Phase 6+ |
+| ~~minimal agent topology (receiver/correspondence-analyst/admission-referee)~~ | **ADMITTED, v26.8.7** |
 | MCP / A2A native runtime | post parity GA |
 | automatic / autonomic controllers | post parity GA |
 | `ggen-legacy` enterprise specialization | Phase 8 |
@@ -353,7 +354,7 @@ v26.8.6 does not admit skills or agents.
 
 ## Handoff topology
 
-Post-v26.8.6 agent topology (specified, not admitted):
+### v26.8.7: minimal agent topology (ADMITTED)
 
 ```text
 receiver
@@ -361,7 +362,23 @@ receiver
 correspondence-analyst
   ↓ CandidateCorrespondenceGraph
 admission-referee
-  ↓ AdmittedCorrespondenceGraph
+  ↓ AdmissionDecision
+```
+
+Real, implemented types (`src/ggen_create/topology.py`), not ontology placeholders:
+`AdmittedRepositoryObservation` wraps a bounded, digest-backed manifest of the subject
+repository; `CandidateCorrespondenceGraph` is a byte-exact diff (`equal`/`only_left`/
+`only_right`/`different`) between that recorded manifest and a fresh re-walk of the
+subject; `AdmissionDecision` carries `standing` (`ADMITTED`/`PARTIAL_ALIVE`/`REFUSED`) and
+`reasons`, gated first on zero drift (hard `REFUSED`) then on the manifest's own declared
+`blockers`. Implemented as `AdmissionDecision`, superseding this section's original
+placeholder name `AdmittedCorrespondenceGraph` for the same handoff — the earlier name was
+never admitted/implemented under that identifier. Held-out replay evidence:
+`selfplay.py`'s `topology-chain-*` scenarios, run against `ggen-create`'s own repository.
+
+### Post-v26.8.7 agent topology (specified, not admitted)
+
+```text
 manufacturing-architect ─────┐
 skill-architect              │
 topology-architect           │

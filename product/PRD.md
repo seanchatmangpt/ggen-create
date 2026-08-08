@@ -6,15 +6,15 @@
 
 ## Version
 
-`v26.8.6`
+`v26.8.7`
 
 ## Status
 
-Authority admitted. Parity contract executable. Product runtime (CLI and package build) admitted on `main` with local unit evidence; the external P7 crown against a real `ggen` binary and upstream `hygen-create` remains `UNKNOWN`.
+Authority admitted. Parity contract executable. Product runtime (CLI and package build) admitted on `main` with local unit evidence. The external P7 crown against a real `ggen` binary and upstream `hygen-create` render is `ALIVE`, published under exact-head CI on push to `main`. The minimal agent topology (`receiver`/`correspondence-analyst`/`admission-referee`) is `ALIVE` with held-out replay evidence.
 
 ## Document law
 
-This PRD is the product authority for `ggen-create v26.8.6`. It binds user-visible behavior, release standing, and claim ceilings. Implementation may lag specification only where this document explicitly marks a capability `UNKNOWN` or `OUT_OF_SCOPE`.
+This PRD is the product authority for `ggen-create v26.8.7`. It binds user-visible behavior, release standing, and claim ceilings. Implementation may lag specification only where this document explicitly marks a capability `UNKNOWN` or `OUT_OF_SCOPE`. Sentences elsewhere in this document scoped to a specific prior version (e.g. "`v26.8.6` does not claim ... skills, agents, MCP, or A2A") are that version's historical record and are not rewritten by later releases — the `v26.8.7 release intent` section below states the current, superseding standing explicitly.
 
 Companion authority:
 
@@ -67,6 +67,24 @@ ggen-create:  exemplar → ggen package    → generated project
 3. **specify the Phase 1 runtime** — the smallest lawful `ggen-create` implementation that can promote `HYGEN_CREATE_PARITY_ALIVE` from documentation-only evidence to executable product evidence.
 
 `v26.8.6` does not claim general repository synthesis, multi-parameter inference, structural anti-unification, skills, agents, MCP, or A2A unless and until a later version admits those checkpoints.
+
+## v26.8.7 release intent
+
+`v26.8.7` admits two things `v26.8.6` explicitly deferred:
+
+1. **the real P7 parity crown** — `HYGEN_CREATE_PARITY_ALIVE`, closed for real (real `ggen`
+   binary + real, independent upstream `hygen` render, byte-exact comparison), published
+   under exact-head CI on every push to `main`;
+2. **the minimal agent topology** (Phase 5) — `receiver`, `correspondence-analyst`, and
+   `admission-referee` carry real typed artifacts and real decision logic, with held-out
+   replay evidence against `ggen-create`'s own repository as subject.
+
+`v26.8.7` narrowly admits standing for exactly these three agents and their skills
+(`topology.observe`, `correspondence.analyze`, `admission.decide`, plus their prior skill
+scoping). It does not admit MCP, A2A, automatic, autonomic controllers, or the remaining 6
+agents (`manufacturing-architect`, `verification-architect`, `skill-architect`,
+`topology-architect`, `adversarial-verifier`, `certifier`) — those remain exactly as
+scoped under `v26.8.6`'s non-goals, unless and until a later version admits them.
 
 ## Users
 
@@ -335,7 +353,7 @@ BUILD_BROKEN:*   implementation or evidence failure
 UNSUPPORTED:*    environment lacks required witness
 ```
 
-v26.8.6 admitted standing on `main`:
+v26.8.7 admitted standing on `main`:
 
 ```text
 reference identity and fixture bytes:     ALIVE
@@ -346,6 +364,10 @@ ggen-create CLI and package runtime:        ALIVE (local unit evidence)
 real public ggen parity crown (P7):         ALIVE (real ggen 26.8.6 + real upstream hygen
                                              render, byte-exact, exact-head CI on push to
                                              main: scripts/gall_p7_crown.py)
+minimal agent topology (Phase 5):           ALIVE (real typed artifacts + decision logic,
+                                             held-out replay against ggen-create's own
+                                             repo: src/ggen_create/topology.py,
+                                             selfplay.py topology-chain-* scenarios)
 ```
 
 `HYGEN_CREATE_PARITY_ALIVE` (line 301's product-parity gate) is admitted: real
