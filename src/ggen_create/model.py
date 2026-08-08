@@ -5,6 +5,15 @@ from pathlib import Path
 import re
 from typing import Any
 
+# This is the hygen-create-format compatibility marker (the session/capture schema
+# version, written into every ggen-create.json and checked against
+# SUPPORTED_SESSION_VERSIONS below), not the package release version in
+# pyproject.toml. The two are intentionally decoupled: bumping this would change
+# what session-format version this build claims to speak - including, downstream,
+# the producer.version field ggen-legacy's receiving-contract authority pins
+# (authority/ggen-create-receiving-contract.json in that repo) - which is a
+# session-compatibility decision, not something that should track every package
+# release automatically.
 APP_VERSION = "0.4.0"
 SUPPORTED_SESSION_VERSIONS = (
     "0.2.0",
