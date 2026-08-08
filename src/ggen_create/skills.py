@@ -155,6 +155,33 @@ SKILLS = (
         verifier="receipt-output-and-subject-digests",
     ),
     SkillSpec(
+        name="topology.observe",
+        description="Bind a bounded, digest-backed observation of an arbitrary repository.",
+        authority="CONSTRUCT",
+        input_class="RepositorySubject",
+        output_class="AdmittedRepositoryObservation",
+        requires_session=False,
+        verifier="bounded-manifest-digest",
+    ),
+    SkillSpec(
+        name="correspondence.analyze",
+        description="Re-walk a subject and diff recomputed digests against a prior observation.",
+        authority="CONSTRUCT",
+        input_class="AdmittedRepositoryObservation",
+        output_class="CandidateCorrespondenceGraph",
+        requires_session=False,
+        verifier="observation-vs-reality-diff",
+    ),
+    SkillSpec(
+        name="admission.decide",
+        description="Decide ADMITTED/PARTIAL_ALIVE/REFUSED from a correspondence graph and its observation.",
+        authority="SELECT",
+        input_class="CandidateCorrespondenceGraph",
+        output_class="AdmissionDecision",
+        requires_session=False,
+        verifier="drift-and-blocker-gated-standing",
+    ),
+    SkillSpec(
         name="receipt.verify",
         description="Verify a native receipt digest.",
         authority="SELECT",
@@ -420,6 +447,28 @@ class Broker:
                     args.get("max_bytes", 512 * 1024 * 1024)
                 ),
             )
+        if name == "topology.observe":
+            from .topology import observe_repository
+
+            observation = observe_repository(
+                self._path(args.get("subject_root", ".")),
+                max_files=int(args.get("max_files", 50_000)),
+                max_bytes=int(args.get("max_bytes", 512 * 1024 * 1024)),
+            )
+            return observation.to_dict()
+        if name == "correspondence.analyze":
+            from .topology import analyze_correspondence
+
+            graph = analyze_correspondence(
+                self._path(args.get("subject_root", ".")),
+                args.get("observation"),
+            )
+            return graph.to_dict()
+        if name == "admission.decide":
+            from .topology import decide_admission
+
+            decision = decide_admission(args.get("observation"), args.get("graph"))
+            return decision.to_dict()
         if name == "legacy.power":
             from .legacy import build_legacy_bundle
 

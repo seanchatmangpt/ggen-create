@@ -14,6 +14,7 @@ from .runtime import (
     ReceiptStore,
     TaskStore,
     atomic_write_json,
+    digest_json,
     utc_now,
 )
 from .skills import SKILLS, Broker, SkillRegistry
@@ -363,6 +364,94 @@ def run_selfplay(
             not ReceiptStore.verify(
                 Path(isolated_receipt["path"])
             )["valid"],
+        )
+    )
+
+    # Phase 5 held-out replay evidence: receiver -> correspondence-analyst ->
+    # admission-referee run against ggen-create's own repository - a real, external
+    # subject the topology was not tuned against, not a fixture. Uses its own
+    # AgentRuntime bound to the repo root (require_under needs subject_root to contain
+    # what's being observed), separate from `agents`/`broker` above.
+    repo_root = Path(__file__).resolve().parents[2]
+    topology_agents = AgentRuntime(repo_root)
+
+    def _run_topology_chain() -> dict[str, Any]:
+        observation = topology_agents.dispatch(
+            "receiver", "topology.observe", {"subject_root": "."},
+            confirm=True,
+        )
+        graph = topology_agents.dispatch(
+            "correspondence-analyst",
+            "correspondence.analyze",
+            {"subject_root": ".", "observation": observation["execution"]["result"]},
+            confirm=True,
+        )
+        decision = topology_agents.dispatch(
+            "admission-referee",
+            "admission.decide",
+            {
+                "observation": observation["execution"]["result"],
+                "graph": graph["execution"]["result"],
+            },
+            confirm=True,
+        )
+        return decision["execution"]["result"]
+
+    first_decision = _run_topology_chain()
+    second_decision = _run_topology_chain()
+    scenarios.append(
+        _check(
+            "topology-chain-replay-deterministic",
+            digest_json(first_decision) == digest_json(second_decision),
+        )
+    )
+
+    scenarios.append(
+        _check(
+            "topology-chain-partial-alive-on-real-blockers",
+            first_decision["standing"] == "PARTIAL_ALIVE"
+            and {"blocker:agents", "blocker:release_control", "blocker:ggen_config"}
+            <= set(first_decision["reasons"]),
+            standing=first_decision["standing"],
+            reasons=first_decision["reasons"],
+        )
+    )
+
+    tampered_observation = topology_agents.dispatch(
+        "receiver", "topology.observe", {"subject_root": "."},
+        confirm=True,
+    )["execution"]["result"]
+    tampered_observation = json.loads(json.dumps(tampered_observation))
+    tampered_observation["manifest"]["files"][0]["sha256"] = "sha256:" + "0" * 64
+    tampered_graph = topology_agents.dispatch(
+        "correspondence-analyst",
+        "correspondence.analyze",
+        {"subject_root": ".", "observation": tampered_observation},
+        confirm=True,
+    )["execution"]["result"]
+    tampered_decision = topology_agents.dispatch(
+        "admission-referee",
+        "admission.decide",
+        {"observation": tampered_observation, "graph": tampered_graph},
+        confirm=True,
+    )["execution"]["result"]
+    scenarios.append(
+        _check(
+            "topology-chain-refused-on-tampered-observation",
+            not tampered_graph["equal"] and tampered_decision["standing"] == "REFUSED",
+            standing=tampered_decision["standing"],
+        )
+    )
+
+    correspondence_route = topology_agents.route("analyze correspondence")
+    admission_route = topology_agents.route("admit candidate")
+    scenarios.append(
+        _check(
+            "topology-router-reaches-new-agents",
+            correspondence_route["agent"] == "correspondence-analyst"
+            and correspondence_route["skill"] == "correspondence.analyze"
+            and admission_route["agent"] == "admission-referee"
+            and admission_route["skill"] == "admission.decide",
         )
     )
 

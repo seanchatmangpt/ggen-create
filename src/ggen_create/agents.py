@@ -37,13 +37,13 @@ AGENTS = (
     AgentSpec(
         "receiver",
         "Fence and inspect the subject.",
-        ("capture.inspect",),
+        ("capture.inspect", "topology.observe"),
         handoff=("correspondence-analyst",),
     ),
     AgentSpec(
         "correspondence-analyst",
         "Analyze generalization candidates.",
-        ("capture.inspect", "automatic.plan"),
+        ("capture.inspect", "automatic.plan", "correspondence.analyze"),
         handoff=("admission-referee",),
     ),
     AgentSpec(
@@ -88,6 +88,7 @@ AGENTS = (
             "receipt.verify",
             "receipt.chain.verify",
             "doctor.inspect",
+            "admission.decide",
         ),
         handoff=("adversarial-verifier",),
     ),
@@ -189,6 +190,16 @@ class AgentRuntime:
                 "receipt.chain.verify",
             ),
             (("receipt", "certify"), "certifier", "receipt.verify"),
+            (
+                ("correspondence", "analyze candidate"),
+                "correspondence-analyst",
+                "correspondence.analyze",
+            ),
+            (
+                ("admission", "admit", "refuse candidate"),
+                "admission-referee",
+                "admission.decide",
+            ),
             (("inspect", "capture", "receive"), "receiver", "capture.inspect"),
         )
         for words, agent, skill in routes:
