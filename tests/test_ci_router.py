@@ -85,6 +85,11 @@ class RouterTests(unittest.TestCase):
         self.assertEqual(report["docs_deep"], ["architecture/enterprise.toml"])
         self.assertEqual(report["build_deep"], ["architecture/enterprise.toml"])
 
+    def test_enterprise_checker_is_ci_and_build_owned(self):
+        report = route_paths(["scripts/enterprise_architecture_check.py"])
+        self.assertEqual(report["ci_deep"], ["scripts/enterprise_architecture_check.py"])
+        self.assertEqual(report["build_deep"], ["scripts/enterprise_architecture_check.py"])
+
     def test_deep_lane_owned_change(self):
         self.assertEqual(route_paths(["ontology/schema.ttl"])["ontology_deep"], ["ontology/schema.ttl"])
 
