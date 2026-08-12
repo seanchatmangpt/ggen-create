@@ -26,6 +26,7 @@ CI_PYTHON = (
     "scripts/gall_surfaces.py",
     "scripts/gall_checkpoint.py",
     "scripts/gall_hygen_parity.py",
+    "scripts/enterprise_architecture_check.py",
     "tests/test_ci_router.py",
     "tests/test_ci_gall.py",
 )
@@ -191,13 +192,25 @@ def _lane(root: Path, lane: str) -> int:
             )
         )
     elif lane == "build":
-        checks.append(
+        checks += [
             _run(
                 "gall_build_checkpoint",
                 [sys.executable, "scripts/gall_checkpoint.py", "--checkpoint", "build", "--head", head, "--receipt", os.devnull],
                 root,
-            )
-        )
+            ),
+            _run(
+                "enterprise_architecture",
+                [
+                    sys.executable,
+                    "scripts/enterprise_architecture_check.py",
+                    "--root",
+                    ".",
+                    "--receipt",
+                    "enterprise-architecture-receipt.json",
+                ],
+                root,
+            ),
+        ]
         if (root / "pyproject.toml").is_file():
             checks += [
                 _run(
