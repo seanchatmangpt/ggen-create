@@ -1,0 +1,61 @@
+name: Rustfmt Capsule
+
+on:
+  push:
+    branches:
+      - feat/rust-dspy-kernel-20260812
+
+permissions:
+  contents: read
+
+jobs:
+  format-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Warm pinned Rust toolchain
+        shell: bash
+        run: |
+          set -uo pipefail
+          for attempt in 1 2 3; do
+            if rustc --version; then
+              exit 0
+            fi
+          done
+          exit 1
+
+      - name: Repair Result alias and format canonical Rust bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/ggen-dspy/src/core.rs')
+          text = path.read_text()
+          old = 'pub type Result<T> = std::result::Result<T, DspyError>;'
+          new = 'pub type Result<T, E = DspyError> = std::result::Result<T, E>;'
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one Result alias to repair')
+          path.write_text(text.replace(old, new))
+          PY
+          cargo fmt --all
+          cargo fmt --all -- --check
+
+      - name: Upload formatted Rust source
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rustfmt-source-${{ github.sha }}
+          path: crates/ggen-dspy
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Execute Rust validation
+        run: |
+          set -euo pipefail
+          cargo check --workspace --all-targets --locked
+          cargo test --workspace --all-targets --locked
