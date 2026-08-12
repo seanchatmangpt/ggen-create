@@ -6,6 +6,24 @@ import re
 
 from .model import GgenCreateError, Replacement, validate_identifier
 
+# The bare case-family transform keys `values_for`/`forms_for` produce -- used to
+# tell an unprefixed ("name" seed) Replacement.variable apart from a prefixed
+# ("<other_seed>_<transform>") one in the multi-seed rendering path below.
+_CASE_FAMILY_KEYS = frozenset(
+    {
+        "name",
+        "upper",
+        "lower",
+        "capitalized",
+        "pascal",
+        "camel",
+        "snake",
+        "upper_snake",
+        "kebab",
+        "title",
+    }
+)
+
 
 @dataclass(frozen=True)
 class CaseForm:
@@ -129,6 +147,119 @@ def replacements_for(text: str, seed: str) -> list[Replacement]:
         )
         i += len(match.literal)
     return result
+
+
+def _prefixed(replacement: Replacement, seed_name: str) -> Replacement:
+    """Rewrite a single-seed Replacement's `variable` under `seed_name`'s own
+    namespace (`row.<seed_name>_<transform>`) -- the seed named "name" is exempt
+    (kept unprefixed) so the default/legacy seed's Tera bindings never change,
+    per Phase 2's back-compat requirement."""
+    if seed_name == "name":
+        return replacement
+    return Replacement(
+        start=replacement.start,
+        end=replacement.end,
+        old_text=replacement.old_text,
+        transform=replacement.transform,
+        variable=f"{seed_name}_{replacement.variable}",
+    )
+
+
+def replacements_for_many(
+    text: str, seeds: list[tuple[str, str]]
+) -> list[Replacement]:
+    """Phase 2: multiple seeds, combined occurrence scan.
+
+    Reuses the real, unmodified `replacements_for` once per seed (each seed keeps
+    its own existing single-seed duplicate-literal priority/left-boundary law
+    unchanged), then merges the per-seed results by start position. Two DIFFERENT
+    seeds whose matched spans genuinely overlap is a real, refused collision
+    (`PARAMETER_COLLISION_REFUSED`) -- never resolved by silently preferring one
+    seed's match over the other's, matching this phase's own PRD/ARD requirement.
+
+    With exactly one seed named "name" (`seeds == [("name", value)]`, the legacy
+    single-seed shape), this returns byte-identical output to
+    `replacements_for(text, value)` -- the back-compat proof this function exists
+    to satisfy.
+    """
+    per_seed: list[Replacement] = []
+    for seed_name, seed_value in seeds:
+        per_seed.extend(
+            _prefixed(r, seed_name) for r in replacements_for(text, seed_value)
+        )
+    per_seed.sort(key=lambda r: r.start)
+    for previous, current in zip(per_seed, per_seed[1:]):
+        if current.start < previous.end:
+            raise GgenCreateError(
+                "PARAMETER_COLLISION_REFUSED",
+                f"overlapping occurrences: {previous.variable!r} "
+                f"({previous.old_text!r} at {previous.start}:{previous.end}) and "
+                f"{current.variable!r} ({current.old_text!r} at "
+                f"{current.start}:{current.end})",
+            )
+    return per_seed
+
+
+def parameterize_body_many(
+    text: str, seeds: list[tuple[str, str]]
+) -> tuple[str, list[Replacement]]:
+    replacements = replacements_for_many(text, seeds)
+    if not replacements:
+        return _raw(text), []
+    out: list[str] = []
+    cursor = 0
+    for replacement in replacements:
+        out.append(_raw(text[cursor : replacement.start]))
+        out.append("{{ row." + replacement.variable + " }}")
+        cursor = replacement.end
+    out.append(_raw(text[cursor:]))
+    return "".join(out), replacements
+
+
+def parameterize_path_many(
+    text: str, seeds: list[tuple[str, str]]
+) -> tuple[str, list[Replacement]]:
+    replacements = replacements_for_many(text, seeds)
+    if "{{" in text or "{%" in text:
+        raise GgenCreateError(
+            "TEMPLATED_SOURCE_PATH_REFUSED",
+            f"source path already contains template delimiters: {text}",
+        )
+    out: list[str] = []
+    cursor = 0
+    for replacement in replacements:
+        out.append(text[cursor : replacement.start])
+        out.append("{{ row." + replacement.variable + " }}")
+        cursor = replacement.end
+    out.append(text[cursor:])
+    return "".join(out), replacements
+
+
+def render_concrete_many(
+    text: str,
+    seeds: list[tuple[str, str]],
+    values: list[tuple[str, str]],
+) -> tuple[str, list[Replacement]]:
+    """Like `render_concrete`, generalized to multiple seeds: `values` supplies a
+    real concrete replacement value per seed name, in the same order as `seeds`."""
+    replacements = replacements_for_many(text, seeds)
+    values_by_seed = {name: values_for(value) for name, value in values}
+    out: list[str] = []
+    cursor = 0
+    for replacement in replacements:
+        # The "name" seed's variables are unprefixed (bare transform names, e.g.
+        # "pascal"); every other seed's variables are "<seed_name>_<transform>".
+        # Disambiguate against the small, fixed case-family key set rather than
+        # string-splitting on "_" alone (a seed's own name could itself contain
+        # an underscore).
+        if replacement.variable in _CASE_FAMILY_KEYS:
+            out.append(values_by_seed["name"][replacement.variable])
+        else:
+            owner, _, transform_key = replacement.variable.partition("_")
+            out.append(values_by_seed[owner][transform_key])
+        cursor = replacement.end
+    out.append(text[cursor:])
+    return "".join(out), replacements
 
 
 def _raw(text: str) -> str:

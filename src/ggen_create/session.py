@@ -8,6 +8,7 @@ from .model import (
     ABOUT,
     APP_VERSION,
     GgenCreateError,
+    MULTI_SEED_VERSION,
     SESSION_FILE,
     SUPPORTED_SESSION_VERSIONS,
     validate_identifier,
@@ -21,6 +22,12 @@ _SESSION_FIELDS = {
     "templatize_using_name",
     "gen_parent_dir",
 }
+# Phase 2 (multiple seeds): a MULTI_SEED_VERSION session carries one additional field,
+# `seeds` -- a non-empty, ordered list of {"name": ..., "value": ...} objects. All other
+# fields (including the legacy `templatize_using_name`) are unchanged and still required, so
+# tooling that only understands the six-field shape can still read `templatize_using_name`
+# for the seed named "name".
+_SESSION_FIELDS_MULTI_SEED = _SESSION_FIELDS | {"seeds"}
 
 
 def _session_template(name: str, filename: str) -> dict[str, Any]:
@@ -119,24 +126,45 @@ def _validate_capture_path(value: Any) -> str:
     return posix.as_posix()
 
 
+def _validate_seeds(raw: Any) -> list[dict[str, str]]:
+    if not isinstance(raw, list) or not raw:
+        raise GgenCreateError(
+            "SESSION_SCHEMA_REFUSED",
+            "seeds must be a non-empty array",
+        )
+    normalized: list[dict[str, str]] = []
+    seen_names: set[str] = set()
+    for entry in raw:
+        if not isinstance(entry, dict) or set(entry) != {"name", "value"}:
+            raise GgenCreateError(
+                "SESSION_SCHEMA_REFUSED",
+                f"each seeds[] entry must be {{name, value}}: {entry!r}",
+            )
+        name = validate_identifier(
+            entry.get("name"),
+            code="PARAMETER_SEED_NAME_REFUSED",
+            label="seed name",
+        )
+        seed_value = validate_identifier(
+            entry.get("value"),
+            code="PARAMETER_SEED_REFUSED",
+            label="parameter seed",
+        )
+        if name in seen_names:
+            raise GgenCreateError(
+                "PARAMETER_SEED_NAME_COLLISION_REFUSED",
+                f"duplicate seed name: {name!r}",
+            )
+        seen_names.add(name)
+        normalized.append({"name": name, "value": seed_value})
+    return normalized
+
+
 def _validate_session_document(value: Any, path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise GgenCreateError(
             "SESSION_SCHEMA_REFUSED",
             f"capture must be an object: {path}",
-        )
-    fields = set(value)
-    missing = sorted(_SESSION_FIELDS - fields)
-    extras = sorted(fields - _SESSION_FIELDS)
-    if missing or extras:
-        raise GgenCreateError(
-            "SESSION_SCHEMA_REFUSED",
-            f"capture fields differ; missing={missing}, extras={extras}",
-        )
-    if value.get("about") != ABOUT:
-        raise GgenCreateError(
-            "SESSION_SCHEMA_REFUSED",
-            "capture about field does not identify a hygen-create session",
         )
     version = value.get("hygen_create_version")
     if not isinstance(version, str):
@@ -150,6 +178,24 @@ def _validate_session_document(value: Any, path: Path) -> dict[str, Any]:
             f"unsupported capture version {version!r}; supported: "
             + ", ".join(SUPPORTED_SESSION_VERSIONS),
         )
+    expected_fields = (
+        _SESSION_FIELDS_MULTI_SEED if version == MULTI_SEED_VERSION else _SESSION_FIELDS
+    )
+    fields = set(value)
+    missing = sorted(expected_fields - fields)
+    extras = sorted(fields - expected_fields)
+    if missing or extras:
+        raise GgenCreateError(
+            "SESSION_SCHEMA_REFUSED",
+            f"capture fields differ; missing={missing}, extras={extras}",
+        )
+    if value.get("about") != ABOUT:
+        raise GgenCreateError(
+            "SESSION_SCHEMA_REFUSED",
+            "capture about field does not identify a hygen-create session",
+        )
+    if version == MULTI_SEED_VERSION:
+        value["seeds"] = _validate_seeds(value.get("seeds"))
     value["name"] = validate_identifier(
         value.get("name"),
         code="GENERATOR_NAME_REFUSED",
@@ -317,7 +363,70 @@ def set_seed(session_path: Path, value: str) -> None:
     )
     session = load_session(session_path)
     session["templatize_using_name"] = value
+    if session.get("hygen_create_version") == MULTI_SEED_VERSION:
+        # Keep seeds[0] (the "name" seed) in sync -- usename/parameter-seed remains
+        # sugar for "the one seed named name" even on an already-migrated session.
+        seeds = session["seeds"]
+        seeds[0] = {"name": "name", "value": value}
+        session["seeds"] = seeds
     save_session(session_path, session)
+
+
+def add_seed(session_path: Path, name: str, value: str) -> None:
+    """Admit an additional named seed (Phase 2: multiple seeds).
+
+    Migrates the session to `MULTI_SEED_VERSION` in place on first use, seeding
+    `seeds[0]` from the existing (possibly still-`None`) `templatize_using_name` under
+    the reserved name `"name"` -- so `usename`/`parameter seed` continues to mean
+    exactly what it already means. Refuses a duplicate seed name
+    (`PARAMETER_SEED_NAME_COLLISION_REFUSED`), including re-adding `"name"` itself
+    (use `usename`/`set_seed` to change the default seed).
+    """
+    name = validate_identifier(
+        name,
+        code="PARAMETER_SEED_NAME_REFUSED",
+        label="seed name",
+    )
+    value = validate_identifier(
+        value,
+        code="PARAMETER_SEED_REFUSED",
+        label="parameter seed",
+    )
+    session = load_session(session_path)
+    if session.get("hygen_create_version") != MULTI_SEED_VERSION:
+        default_value = session.get("templatize_using_name")
+        if not default_value:
+            raise GgenCreateError(
+                "PRIMARY_SEED_REQUIRED_REFUSED",
+                "set the primary seed (usename/parameter seed) before adding "
+                "additional seeds",
+            )
+        session["hygen_create_version"] = MULTI_SEED_VERSION
+        session["seeds"] = [{"name": "name", "value": default_value}]
+    existing_names = {seed["name"] for seed in session["seeds"]}
+    if name in existing_names:
+        raise GgenCreateError(
+            "PARAMETER_SEED_NAME_COLLISION_REFUSED",
+            f"duplicate seed name: {name!r}",
+        )
+    session["seeds"].append({"name": name, "value": value})
+    save_session(session_path, session)
+
+
+def seeds_for_session(session: dict[str, Any]) -> list[tuple[str, str]]:
+    """The session's real, ordered seeds as `(name, value)` pairs -- exactly one entry,
+    `("name", <templatize_using_name>)`, for a pre-Phase-2 session (the entire existing
+    single-seed behavior is this list's one-element special case); the full `seeds` list,
+    in admission order, for a `MULTI_SEED_VERSION` session."""
+    if session.get("hygen_create_version") == MULTI_SEED_VERSION:
+        return [(seed["name"], seed["value"]) for seed in session["seeds"]]
+    seed = session.get("templatize_using_name")
+    if not seed:
+        raise GgenCreateError(
+            "PRIMARY_SEED_REQUIRED_REFUSED",
+            "no seed set; run 'usename <value>' or 'parameter seed <value>' first",
+        )
+    return [("name", seed)]
 
 
 def rename_session(session_path: Path, name: str) -> None:

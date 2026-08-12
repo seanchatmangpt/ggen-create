@@ -128,6 +128,46 @@ v26.8.6 excludes:
 - Tree-sitter structural anti-unification;
 - variation-axis inference from a single exemplar.
 
+### Infer — Phase 2: multiple seeds
+
+`ROADMAP.md`'s Phase 2 ("Multiple parameters and collision law") names this capability but,
+as of `v26.8.7`, defines no acceptance criteria beyond the bullet list itself — this section
+is that missing normative definition, written before the implementation it governs, per this
+document's own "implementation may lag specification" law above.
+
+Phase 2 requires:
+
+- a session may admit more than one named seed (`name`, `value`) pair, not only the single
+  anonymous seed `v26.8.6` supports;
+- the original single-seed CLI surface (`usename`/`parameter seed`) is preserved byte-for-byte
+  as sugar for "the one seed named `name`" — an existing single-seed capture, package build,
+  and generated output are unaffected by this phase;
+- each additional seed's case-family transforms (the same ten forms `v26.8.6` already defines)
+  are scoped under that seed's own name, so two seeds' Tera variables never share a binding —
+  the default seed keeps the unprefixed `row.<transform>` names it already has;
+- **overlapping occurrence detection**: if two different seeds' transform literals would
+  produce overlapping (not merely adjacent) spans in the same file, admission is refused —
+  never resolved by silently preferring one seed over the other. This is `PARAMETER_COLLISION_REFUSED`,
+  already declared in `architecture/ARD.md`'s security-boundaries list but unimplemented before
+  this phase;
+- refusal is deterministic and reproducible: the same two-seed input always produces the same
+  refusal (or the same admitted occurrence set), matching the determinism law the rest of this
+  document already requires of single-seed inference.
+
+Phase 2 explicitly excludes (deferred to a later pass within Phase 2, or a later phase; named
+here so they are not silently assumed closed by the above):
+
+- declared constants (an allowlist of literals that must never be treated as a seed occurrence
+  even when they textually match a seed's value);
+- transform ambiguity beyond the overlapping-occurrence case above (e.g. one seed's own case
+  family producing two forms that coincidentally collide with each other, as opposed to two
+  *different* seeds colliding);
+- explicit binary/opaque-copy policy (today, `v26.8.6`'s `BINARY_FILE_REFUSED` remains a hard
+  refusal at capture time; Phase 2 does not relax it);
+- the full typed-negative-fixture matrix across all seven `ROADMAP.md` Phase 2 sub-items;
+- the `MULTI_PARAMETER_PARITY_ALIVE` exit gate itself, which requires all seven sub-items
+  closed together, not the multiple-seeds capability alone.
+
 ### Inspect
 
 Expose every proposed correspondence, collision, ambiguity, unsupported region, and target projection before admission.
