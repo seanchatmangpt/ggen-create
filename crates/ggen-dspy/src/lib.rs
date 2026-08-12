@@ -26,8 +26,8 @@ pub mod optimize;
 pub mod patterns;
 
 pub use adapters::{
-    AdapterWithFallback, ChatAdapter, CompletionAdapter, CompletionRequest, Demonstration,
-    DummyLM, GgenAiAdapter, IntegratedAdapter, JSONAdapter, LlmAdapter, ModelUsage, RetryConfig,
+    AdapterWithFallback, ChatAdapter, CompletionAdapter, CompletionRequest, Demonstration, DummyLM,
+    GgenAiAdapter, IntegratedAdapter, JSONAdapter, LlmAdapter, ModelUsage, RetryConfig,
     TokenCounter, TokenStats,
 };
 pub use assertions::{Assert, AssertionError, Suggest};
@@ -41,15 +41,15 @@ pub use core::{
     Result, Signature, SignatureBuilder, Values,
 };
 pub use evaluate::{
-    evaluate, EvalFuture, EvaluationFuture, EvaluationMetrics, EvaluationResult,
-    EvaluationSummary, Evaluator, ExactMatch, Metric, MetricValue,
+    evaluate, EvalFuture, EvaluationFuture, EvaluationMetrics, EvaluationResult, EvaluationSummary,
+    Evaluator, ExactMatch, Metric, MetricValue,
 };
 pub use modules::{
-    ActionIntent, BaleenBuilder, BaleenConfig, BaleenHop, ChainOfThought, CodeIntent,
-    CodeLanguage, ExecutionResult, HopState, InMemoryRetriever, MultiHopConfig, MultiHopQA,
-    MultiHopQABuilder, Passage, Predictor, ProgramIntentFuture, ProgramOfThought,
-    ProgramOfThoughtBuilder, ProgramOfThoughtConfig, ReAct, ReactAgent, ReactFuture, ReactTurn,
-    Retrieve, RetrieveBuilder, RetrieverBackend, SimplifiedBaleen, Tool, ToolObservation,
+    ActionIntent, BaleenBuilder, BaleenConfig, BaleenHop, ChainOfThought, CodeIntent, CodeLanguage,
+    ExecutionResult, HopState, InMemoryRetriever, MultiHopConfig, MultiHopQA, MultiHopQABuilder,
+    Passage, Predictor, ProgramIntentFuture, ProgramOfThought, ProgramOfThoughtBuilder,
+    ProgramOfThoughtConfig, ReAct, ReactAgent, ReactFuture, ReactTurn, Retrieve, RetrieveBuilder,
+    RetrieverBackend, SimplifiedBaleen, Tool, ToolObservation,
 };
 pub use optimize::{
     BootstrapFewShot, LabeledFewShot, MiproOptimizer, OptimizationReceipt, OptimizeFuture,

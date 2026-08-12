@@ -85,7 +85,7 @@ impl Signature {
         name: impl Into<String>,
         instructions: impl Into<String>,
         fields: impl IntoIterator<Item = Field>,
-    ) -> Result<Self, DspyError> {
+    ) -> Result<Self> {
         let name = name.into();
         let instructions = instructions.into();
         let fields: Vec<Field> = fields.into_iter().collect();
@@ -153,7 +153,7 @@ impl Signature {
         }
     }
 
-    pub fn validate_inputs(&self, values: &Values) -> Result<(), DspyError> {
+    pub fn validate_inputs(&self, values: &Values) -> Result<()> {
         for field in self.input_fields() {
             if !values.contains_key(&field.name) {
                 return Err(DspyError::MissingInput(field.name.clone()));
@@ -162,7 +162,7 @@ impl Signature {
         Ok(())
     }
 
-    pub fn validate_outputs(&self, values: &Values) -> Result<(), DspyError> {
+    pub fn validate_outputs(&self, values: &Values) -> Result<()> {
         for field in self.output_fields() {
             if !values.contains_key(&field.name) {
                 return Err(DspyError::MissingOutput(field.name.clone()));
@@ -171,7 +171,7 @@ impl Signature {
         Ok(())
     }
 
-    pub fn validate_example(&self, example: &Example) -> Result<(), DspyError> {
+    pub fn validate_example(&self, example: &Example) -> Result<()> {
         self.validate_inputs(&example.inputs)?;
         self.validate_outputs(&example.outputs)
     }
@@ -216,12 +216,12 @@ impl SignatureBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Signature, DspyError> {
+    pub fn build(self) -> Result<Signature> {
         Signature::new(self.name, self.instructions, self.fields)
     }
 }
 
-fn validate_field_name(name: &str) -> Result<(), DspyError> {
+fn validate_field_name(name: &str) -> Result<()> {
     let trimmed = name.trim();
     if trimmed.is_empty()
         || trimmed != name

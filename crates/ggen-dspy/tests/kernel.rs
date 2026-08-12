@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Wake, Waker};
 
 use ggen_dspy::{
-    evaluate, BootstrapFewShot, ChainOfThought, Completion, DspyError, Example, ExactMatch, Field,
+    evaluate, BootstrapFewShot, ChainOfThought, Completion, DspyError, ExactMatch, Example, Field,
     LabeledFewShot, LanguageModel, ModelFuture, Module, Predictor, PromptRequest, ReAct, ReactTurn,
     Signature, ToolObservation, Values,
 };
@@ -22,9 +22,7 @@ impl FixedModel {
         S: Into<String>,
     {
         Self {
-            responses: Arc::new(Mutex::new(
-                responses.into_iter().map(Into::into).collect(),
-            )),
+            responses: Arc::new(Mutex::new(responses.into_iter().map(Into::into).collect())),
             prompts: Arc::new(Mutex::new(Vec::new())),
         }
     }
@@ -97,10 +95,7 @@ fn signature_rejects_duplicates_and_requires_output() {
     let duplicate = Signature::new(
         "bad",
         "",
-        [
-            Field::input("x", ""),
-            Field::output("x", "duplicate"),
-        ],
+        [Field::input("x", ""), Field::output("x", "duplicate")],
     );
     assert!(matches!(duplicate, Err(DspyError::InvalidSignature(_))));
 
@@ -112,8 +107,8 @@ fn signature_rejects_duplicates_and_requires_output() {
 fn predictor_parses_typed_output_and_records_deterministic_prompt() {
     let model = FixedModel::new(["answer: 4"]);
     let predictor = Predictor::new(qa_signature(), Arc::new(model.clone()));
-    let prediction = block_on(predictor.forward(&values(&[("question", "2 + 2?")])))
-        .expect("prediction");
+    let prediction =
+        block_on(predictor.forward(&values(&[("question", "2 + 2?")]))).expect("prediction");
 
     assert_eq!(prediction.get("answer"), Some("4"));
     let prompts = model.prompts();
@@ -137,8 +132,7 @@ fn predictor_supports_multiple_outputs() {
     let model = FixedModel::new(["label: positive\nconfidence: 0.98"]);
     let predictor = Predictor::new(signature, Arc::new(model));
     let prediction =
-        block_on(predictor.forward(&values(&[("text", "great")])))
-            .expect("prediction");
+        block_on(predictor.forward(&values(&[("text", "great")]))).expect("prediction");
 
     assert_eq!(prediction.get("label"), Some("positive"));
     assert_eq!(prediction.get("confidence"), Some("0.98"));
@@ -148,10 +142,13 @@ fn predictor_supports_multiple_outputs() {
 fn chain_of_thought_keeps_reasoning_separate_from_outputs() {
     let model = FixedModel::new(["reasoning: two plus two is four\nanswer: 4"]);
     let module = ChainOfThought::new(qa_signature(), Arc::new(model));
-    let prediction = block_on(module.forward(&values(&[("question", "2 + 2?")])))
-        .expect("prediction");
+    let prediction =
+        block_on(module.forward(&values(&[("question", "2 + 2?")]))).expect("prediction");
 
-    assert_eq!(prediction.reasoning.as_deref(), Some("two plus two is four"));
+    assert_eq!(
+        prediction.reasoning.as_deref(),
+        Some("two plus two is four")
+    );
     assert_eq!(prediction.get("answer"), Some("4"));
 }
 
@@ -160,11 +157,7 @@ fn react_manufactures_intent_without_any_tool_execution_surface() {
     let model = FixedModel::new([
         "action.tool: search\naction.rationale: need evidence\naction.arg.query: rust dspy",
     ]);
-    let react = ReAct::new(
-        qa_signature(),
-        Arc::new(model),
-        ["search".to_owned()],
-    );
+    let react = ReAct::new(qa_signature(), Arc::new(model), ["search".to_owned()]);
 
     let turn = block_on(react.step(
         &values(&[("question", "Where is the implementation?")]),
@@ -175,7 +168,10 @@ fn react_manufactures_intent_without_any_tool_execution_surface() {
     match turn {
         ReactTurn::Intent(intent) => {
             assert_eq!(intent.tool, "search");
-            assert_eq!(intent.arguments.get("query").map(String::as_str), Some("rust dspy"));
+            assert_eq!(
+                intent.arguments.get("query").map(String::as_str),
+                Some("rust dspy")
+            );
             assert_eq!(intent.rationale.as_deref(), Some("need evidence"));
         }
         ReactTurn::Final(_) => panic!("expected intent"),
@@ -228,8 +224,7 @@ fn labeled_few_shot_compiles_examples_into_student_prompt() {
         .compile(&student, &examples)
         .expect("compile");
     assert_eq!(compiled.demonstrations().len(), 1);
-    block_on(compiled.forward(&values(&[("question", "2 + 2?")])))
-        .expect("prediction");
+    block_on(compiled.forward(&values(&[("question", "2 + 2?")]))).expect("prediction");
 
     let prompt = model.prompts().pop().expect("captured prompt");
     assert!(prompt.contains("[example 1]"));
@@ -255,13 +250,8 @@ fn bootstrap_few_shot_admits_only_metric_passing_teacher_predictions() {
     ];
 
     let optimizer = BootstrapFewShot::new(8, 1.0).expect("optimizer");
-    let compiled = block_on(optimizer.compile(
-        &student,
-        &teacher,
-        &training,
-        &ExactMatch,
-    ))
-    .expect("bootstrap");
+    let compiled =
+        block_on(optimizer.compile(&student, &teacher, &training, &ExactMatch)).expect("bootstrap");
 
     assert_eq!(compiled.demonstrations().len(), 1);
     assert_eq!(

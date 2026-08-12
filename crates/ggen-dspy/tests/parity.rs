@@ -96,8 +96,8 @@ fn program_of_thought_manufactures_code_but_refuses_execution() {
         .language(CodeLanguage::Python)
         .build();
 
-    let prediction = block_on(program.forward(&values(&[("question", "compute")])))
-        .expect("construct program");
+    let prediction =
+        block_on(program.forward(&values(&[("question", "compute")]))).expect("construct program");
     assert_eq!(prediction.get("code"), Some("print(42)"));
     assert_eq!(
         prediction.get("execution_status"),
@@ -119,7 +119,9 @@ fn assertions_operate_on_predictions_without_retry_or_actuation() {
     Assert::field_nonempty("answer")
         .check(&prediction)
         .expect("non-empty answer passes");
-    assert!(Assert::field_nonempty("missing").check(&prediction).is_err());
+    assert!(Assert::field_nonempty("missing")
+        .check(&prediction)
+        .is_err());
 }
 
 #[test]
@@ -142,10 +144,8 @@ fn historical_pattern_library_is_complete() {
 
 #[test]
 fn mipro_surface_is_bounded_by_explicit_candidates() {
-    let optimizer = ggen_dspy::MiproOptimizer::new(
-        OptimizerConfig::new().with_max_iterations(3),
-    )
-    .with_candidates(["short".to_owned(), "precise".to_owned()]);
+    let optimizer = ggen_dspy::MiproOptimizer::new(OptimizerConfig::new().with_max_iterations(3))
+        .with_candidates(["short".to_owned(), "precise".to_owned()]);
     assert_eq!(optimizer.name(), "MIPRO");
     assert_eq!(optimizer.candidate_instructions.len(), 2);
 }

@@ -187,10 +187,7 @@ impl MiproOptimizer {
         }
     }
 
-    pub fn with_candidates(
-        mut self,
-        candidates: impl IntoIterator<Item = String>,
-    ) -> Self {
+    pub fn with_candidates(mut self, candidates: impl IntoIterator<Item = String>) -> Self {
         self.candidate_instructions = candidates.into_iter().collect();
         self
     }

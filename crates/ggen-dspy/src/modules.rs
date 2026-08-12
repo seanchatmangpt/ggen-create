@@ -176,9 +176,8 @@ pub enum ReactTurn {
     Intent(ActionIntent),
 }
 
-pub type ReactFuture<'a> = std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<ReactTurn, DspyError>> + Send + 'a>,
->;
+pub type ReactFuture<'a> =
+    std::pin::Pin<Box<dyn std::future::Future<Output = Result<ReactTurn, DspyError>> + Send + 'a>>;
 
 /// DSPy ReAct with a hard authority fence.
 ///
@@ -656,9 +655,8 @@ impl ProgramOfThought {
     }
 }
 
-pub type ProgramIntentFuture<'a> = std::pin::Pin<
-    Box<dyn std::future::Future<Output = Result<CodeIntent, DspyError>> + Send + 'a>,
->;
+pub type ProgramIntentFuture<'a> =
+    std::pin::Pin<Box<dyn std::future::Future<Output = Result<CodeIntent, DspyError>> + Send + 'a>>;
 
 impl Module for ProgramOfThought {
     fn forward<'a>(&'a self, inputs: &'a Values) -> ModuleFuture<'a> {
@@ -791,7 +789,8 @@ fn compile_react_prompt(
     allowed_tools: &BTreeSet<String>,
 ) -> String {
     let mut prompt = compile_prompt(signature, demonstrations, inputs, PromptMode::Predict);
-    prompt.push_str("\nReAct authority boundary: you may propose an action but cannot execute it.\n");
+    prompt
+        .push_str("\nReAct authority boundary: you may propose an action but cannot execute it.\n");
     prompt.push_str("Allowed tools:");
     if allowed_tools.is_empty() {
         prompt.push_str(" (none)");

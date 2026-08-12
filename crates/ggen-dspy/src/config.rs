@@ -218,11 +218,7 @@ impl UsageTracker {
         Self::default()
     }
 
-    pub fn record(
-        &self,
-        prompt_tokens: u64,
-        completion_tokens: u64,
-    ) -> Result<(), DspyError> {
+    pub fn record(&self, prompt_tokens: u64, completion_tokens: u64) -> Result<(), DspyError> {
         let mut stats = self
             .stats
             .lock()
