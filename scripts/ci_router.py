@@ -69,6 +69,7 @@ def _is_build(path: str) -> bool:
         "rust-toolchain.toml",
         "deny.toml",
         "pyproject.toml",
+        "architecture/enterprise.toml",
     }:
         return True
     if path.startswith(("src/", "crates/", "examples/", "benches/", "fixtures/", "schemas/")):
