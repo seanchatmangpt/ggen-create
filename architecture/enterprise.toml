@@ -1,0 +1,73 @@
+schema = "ggen-create.enterprise-architecture.v1"
+status = "ADMITTED"
+version = "26.8.7"
+
+[subject]
+repository = "seanchatmangpt/ggen-create"
+component = "crates/ggen-dspy"
+role = "construct-only reasoning and optimization substrate"
+provenance_repository = "seanchatmangpt/ggen"
+provenance_commit = "39c5d11d961a3143b228381e0ec208344e0054c6"
+
+[authority]
+select = true
+construct = true
+actuate = false
+exclusive_do_owner = "host-broker"
+zero_unreceipted_actuation = true
+model_output_is_authority = false
+
+[trust]
+input_class = "untrusted-until-admitted"
+model_output_class = "candidate"
+action_intent_class = "candidate"
+execution_result_class = "broker-returned-evidence"
+receipt_owner = "host-broker"
+standing_owner = "host-broker"
+
+[supply_chain]
+unsafe_code = false
+publish = false
+runtime_dependencies = 0
+toolchain_pinned = true
+lockfile_required = true
+
+[determinism]
+canonical_value_ordering = true
+bounded_optimizer_search = true
+ambient_clock_required = false
+ambient_randomness_required = false
+ambient_network_required = false
+ambient_filesystem_required = false
+ambient_process_required = false
+
+[controls]
+required_docs = [
+  "architecture/ARD.md",
+  "architecture/ADR-0001-RUST-DSPY-AUTHORITY.md",
+  "architecture/ENTERPRISE_ARCHITECTURE.md",
+  "docs/ENTERPRISE_READINESS.md",
+]
+required_rust_markers = [
+  "#![forbid(unsafe_code)]",
+  "ActionIntent",
+  "CodeIntent",
+  "ToolObservation",
+  "REFUSED:ACTUATION_REQUIRES_BROKER",
+]
+forbidden_rust_markers = [
+  "std::process::",
+  "std::fs::",
+  "std::net::",
+  "Command::new(",
+  "TcpStream",
+  "UdpSocket",
+  "unsafe {",
+  "extern \"C\"",
+]
+
+[standing]
+implementation = "ALIVE"
+enterprise_architecture = "ADMITTED"
+production_service = "NOT_APPLICABLE"
+external_actuation = "REFUSED_WITHOUT_BROKER"
