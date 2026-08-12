@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
 
 use crate::core::{
@@ -39,6 +39,14 @@ impl Predictor {
         }
         self.demonstrations = demonstrations;
         Ok(self)
+    }
+
+    pub fn with_instructions(&self, instructions: impl Into<String>) -> Self {
+        Self {
+            signature: self.signature.with_instructions(instructions),
+            model: Arc::clone(&self.model),
+            demonstrations: self.demonstrations.clone(),
+        }
     }
 
     pub fn compile_prompt(&self, inputs: &Values) -> Result<String, DspyError> {
@@ -82,6 +90,10 @@ impl Module for Predictor {
     fn forward<'a>(&'a self, inputs: &'a Values) -> ModuleFuture<'a> {
         Box::pin(async move { self.predict_with_mode(inputs, PromptMode::Predict).await })
     }
+
+    fn name(&self) -> &str {
+        "Predictor"
+    }
 }
 
 /// DSPy ChainOfThought. Reasoning is typed as construction evidence, not authority.
@@ -111,6 +123,26 @@ impl Module for ChainOfThought {
                 .await
         })
     }
+
+    fn name(&self) -> &str {
+        "ChainOfThought"
+    }
+}
+
+/// Data-only tool declaration. It carries no executable callback.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Tool {
+    pub name: String,
+    pub description: String,
+}
+
+impl Tool {
+    pub fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            description: description.into(),
+        }
+    }
 }
 
 /// An observation supplied by the host after separately admitted/receipted actuation.
@@ -130,9 +162,6 @@ impl ToolObservation {
 }
 
 /// A candidate action manufactured by ReAct.
-///
-/// This is intentionally data-only. There is no callback, executable closure, process handle,
-/// filesystem handle, network client, or ambient tool authority in the type.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActionIntent {
     pub tool: String,
@@ -147,13 +176,15 @@ pub enum ReactTurn {
     Intent(ActionIntent),
 }
 
-pub type ReactFuture<'a> =
-    std::pin::Pin<Box<dyn std::future::Future<Output = Result<ReactTurn, DspyError>> + Send + 'a>>;
+pub type ReactFuture<'a> = std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<ReactTurn, DspyError>> + Send + 'a>,
+>;
 
 /// DSPy ReAct with a hard authority fence.
 ///
-/// `ReAct` can propose a tool intent, but it cannot execute one. The host must admit and actuate
-/// through its own broker, then supply the resulting observation to a later `step`.
+/// The historical crate accepted executable Tool callbacks. In ggen-create that boundary is
+/// intentionally narrowed: ReAct may manufacture an [`ActionIntent`], but only the host broker
+/// can admit and actuate it. Broker observations can then be supplied to the next step.
 #[derive(Clone)]
 pub struct ReAct {
     signature: Signature,
@@ -161,6 +192,9 @@ pub struct ReAct {
     allowed_tools: BTreeSet<String>,
     demonstrations: Vec<Example>,
 }
+
+/// Historical name retained for compatibility.
+pub type ReactAgent = ReAct;
 
 impl ReAct {
     pub fn new(
@@ -174,6 +208,14 @@ impl ReAct {
             allowed_tools: allowed_tools.into_iter().collect(),
             demonstrations: Vec::new(),
         }
+    }
+
+    pub fn from_tools(
+        signature: Signature,
+        model: Arc<dyn LanguageModel>,
+        tools: impl IntoIterator<Item = Tool>,
+    ) -> Self {
+        Self::new(signature, model, tools.into_iter().map(|tool| tool.name))
     }
 
     pub fn with_demonstrations(mut self, demonstrations: Vec<Example>) -> Result<Self, DspyError> {
@@ -221,6 +263,445 @@ impl ReAct {
     }
 }
 
+/// One retrieved passage from an admitted corpus.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Passage {
+    pub text: String,
+    pub score: f64,
+    pub metadata: Values,
+}
+
+impl Passage {
+    pub fn new(text: impl Into<String>, score: f64) -> Self {
+        Self {
+            text: text.into(),
+            score,
+            metadata: Values::new(),
+        }
+    }
+}
+
+/// Read-side retrieval boundary. Backends return observations and have no mutation API.
+pub trait RetrieverBackend: Send + Sync {
+    fn retrieve(&self, query: &str, limit: usize) -> Result<Vec<Passage>, DspyError>;
+}
+
+/// Deterministic lexical retriever for local/admitted corpora.
+#[derive(Clone, Debug, Default)]
+pub struct InMemoryRetriever {
+    documents: Vec<String>,
+}
+
+impl InMemoryRetriever {
+    pub fn new(documents: impl IntoIterator<Item = String>) -> Self {
+        Self {
+            documents: documents.into_iter().collect(),
+        }
+    }
+}
+
+impl RetrieverBackend for InMemoryRetriever {
+    fn retrieve(&self, query: &str, limit: usize) -> Result<Vec<Passage>, DspyError> {
+        let query_terms = terms(query);
+        let mut passages: Vec<Passage> = self
+            .documents
+            .iter()
+            .map(|document| {
+                let document_terms = terms(document);
+                let overlap = query_terms.intersection(&document_terms).count();
+                let denominator = query_terms.len().max(1) as f64;
+                Passage::new(document.clone(), overlap as f64 / denominator)
+            })
+            .collect();
+        passages.sort_by(|left, right| {
+            right
+                .score
+                .partial_cmp(&left.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| left.text.cmp(&right.text))
+        });
+        passages.truncate(limit);
+        Ok(passages)
+    }
+}
+
+fn terms(text: &str) -> HashSet<String> {
+    text.split(|ch: char| !ch.is_alphanumeric())
+        .filter(|part| !part.is_empty())
+        .map(str::to_ascii_lowercase)
+        .collect()
+}
+
+#[derive(Clone)]
+pub struct Retrieve {
+    backend: Arc<dyn RetrieverBackend>,
+    limit: usize,
+}
+
+impl Retrieve {
+    pub fn new(backend: Arc<dyn RetrieverBackend>, limit: usize) -> Self {
+        Self { backend, limit }
+    }
+
+    pub fn passages(&self, query: &str) -> Result<Vec<Passage>, DspyError> {
+        self.backend.retrieve(query, self.limit)
+    }
+}
+
+impl Module for Retrieve {
+    fn forward<'a>(&'a self, inputs: &'a Values) -> ModuleFuture<'a> {
+        Box::pin(async move {
+            let query = inputs
+                .get("query")
+                .or_else(|| inputs.get("question"))
+                .ok_or_else(|| DspyError::MissingInput("query".to_owned()))?;
+            let passages = self.passages(query)?;
+            let mut outputs = Values::new();
+            outputs.insert(
+                "context".to_owned(),
+                passages
+                    .iter()
+                    .map(|passage| passage.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n\n"),
+            );
+            outputs.insert("passage_count".to_owned(), passages.len().to_string());
+            Ok(Prediction::new(outputs))
+        })
+    }
+
+    fn name(&self) -> &str {
+        "Retrieve"
+    }
+}
+
+pub struct RetrieveBuilder {
+    backend: Arc<dyn RetrieverBackend>,
+    limit: usize,
+}
+
+impl RetrieveBuilder {
+    pub fn new(backend: Arc<dyn RetrieverBackend>) -> Self {
+        Self { backend, limit: 5 }
+    }
+
+    pub fn limit(mut self, limit: usize) -> Self {
+        self.limit = limit;
+        self
+    }
+
+    pub fn build(self) -> Retrieve {
+        Retrieve::new(self.backend, self.limit)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MultiHopConfig {
+    pub max_hops: usize,
+    pub passages_per_hop: usize,
+}
+
+impl Default for MultiHopConfig {
+    fn default() -> Self {
+        Self {
+            max_hops: 2,
+            passages_per_hop: 3,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct HopState {
+    pub hop: usize,
+    pub query: String,
+    pub passages: Vec<Passage>,
+}
+
+#[derive(Clone)]
+pub struct MultiHopQA {
+    predictor: Predictor,
+    backend: Arc<dyn RetrieverBackend>,
+    config: MultiHopConfig,
+}
+
+impl MultiHopQA {
+    pub fn new(
+        predictor: Predictor,
+        backend: Arc<dyn RetrieverBackend>,
+        config: MultiHopConfig,
+    ) -> Self {
+        Self {
+            predictor,
+            backend,
+            config,
+        }
+    }
+
+    pub fn trace(&self, question: &str) -> Result<Vec<HopState>, DspyError> {
+        let mut trace = Vec::new();
+        let mut query = question.to_owned();
+        for hop in 0..self.config.max_hops {
+            let passages = self
+                .backend
+                .retrieve(&query, self.config.passages_per_hop)?;
+            let next_query = passages
+                .first()
+                .map(|passage| format!("{question} {}", passage.text))
+                .unwrap_or_else(|| question.to_owned());
+            trace.push(HopState {
+                hop,
+                query,
+                passages,
+            });
+            query = next_query;
+        }
+        Ok(trace)
+    }
+}
+
+impl Module for MultiHopQA {
+    fn forward<'a>(&'a self, inputs: &'a Values) -> ModuleFuture<'a> {
+        Box::pin(async move {
+            let question = inputs
+                .get("question")
+                .ok_or_else(|| DspyError::MissingInput("question".to_owned()))?;
+            let trace = self.trace(question)?;
+            let context = trace
+                .iter()
+                .flat_map(|hop| hop.passages.iter())
+                .map(|passage| passage.text.as_str())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            let mut enriched = inputs.clone();
+            enriched.insert("context".to_owned(), context);
+            self.predictor.forward(&enriched).await
+        })
+    }
+
+    fn name(&self) -> &str {
+        "MultiHopQA"
+    }
+}
+
+pub struct MultiHopQABuilder {
+    predictor: Predictor,
+    backend: Arc<dyn RetrieverBackend>,
+    config: MultiHopConfig,
+}
+
+impl MultiHopQABuilder {
+    pub fn new(predictor: Predictor, backend: Arc<dyn RetrieverBackend>) -> Self {
+        Self {
+            predictor,
+            backend,
+            config: MultiHopConfig::default(),
+        }
+    }
+
+    pub fn max_hops(mut self, max_hops: usize) -> Self {
+        self.config.max_hops = max_hops;
+        self
+    }
+
+    pub fn passages_per_hop(mut self, passages: usize) -> Self {
+        self.config.passages_per_hop = passages;
+        self
+    }
+
+    pub fn build(self) -> MultiHopQA {
+        MultiHopQA::new(self.predictor, self.backend, self.config)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BaleenConfig {
+    pub max_hops: usize,
+    pub passages_per_hop: usize,
+}
+
+impl Default for BaleenConfig {
+    fn default() -> Self {
+        Self {
+            max_hops: 2,
+            passages_per_hop: 3,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BaleenHop {
+    pub hop: usize,
+    pub passages: Vec<Passage>,
+}
+
+#[derive(Clone)]
+pub struct SimplifiedBaleen {
+    qa: MultiHopQA,
+}
+
+impl SimplifiedBaleen {
+    pub fn new(
+        predictor: Predictor,
+        backend: Arc<dyn RetrieverBackend>,
+        config: BaleenConfig,
+    ) -> Self {
+        Self {
+            qa: MultiHopQA::new(
+                predictor,
+                backend,
+                MultiHopConfig {
+                    max_hops: config.max_hops,
+                    passages_per_hop: config.passages_per_hop,
+                },
+            ),
+        }
+    }
+}
+
+impl Module for SimplifiedBaleen {
+    fn forward<'a>(&'a self, inputs: &'a Values) -> ModuleFuture<'a> {
+        self.qa.forward(inputs)
+    }
+
+    fn name(&self) -> &str {
+        "SimplifiedBaleen"
+    }
+}
+
+pub struct BaleenBuilder {
+    predictor: Predictor,
+    backend: Arc<dyn RetrieverBackend>,
+    config: BaleenConfig,
+}
+
+impl BaleenBuilder {
+    pub fn new(predictor: Predictor, backend: Arc<dyn RetrieverBackend>) -> Self {
+        Self {
+            predictor,
+            backend,
+            config: BaleenConfig::default(),
+        }
+    }
+
+    pub fn max_hops(mut self, max_hops: usize) -> Self {
+        self.config.max_hops = max_hops;
+        self
+    }
+
+    pub fn build(self) -> SimplifiedBaleen {
+        SimplifiedBaleen::new(self.predictor, self.backend, self.config)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CodeLanguage {
+    Python,
+    Rust,
+    JavaScript,
+    Other,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProgramOfThoughtConfig {
+    pub language: CodeLanguage,
+}
+
+impl Default for ProgramOfThoughtConfig {
+    fn default() -> Self {
+        Self {
+            language: CodeLanguage::Python,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CodeIntent {
+    pub language: CodeLanguage,
+    pub code: String,
+    pub rationale: Option<String>,
+}
+
+/// Broker-returned result type. This crate never manufactures one by executing code.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExecutionResult {
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: i32,
+    pub receipt: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct ProgramOfThought {
+    predictor: Predictor,
+    config: ProgramOfThoughtConfig,
+}
+
+impl ProgramOfThought {
+    pub fn new(predictor: Predictor, config: ProgramOfThoughtConfig) -> Self {
+        Self { predictor, config }
+    }
+
+    pub fn construct<'a>(&'a self, inputs: &'a Values) -> ProgramIntentFuture<'a> {
+        Box::pin(async move {
+            let prediction = self.predictor.forward(inputs).await?;
+            let code = prediction
+                .get("code")
+                .ok_or_else(|| DspyError::MissingOutput("code".to_owned()))?;
+            Ok(CodeIntent {
+                language: self.config.language,
+                code: code.to_owned(),
+                rationale: prediction.reasoning.clone(),
+            })
+        })
+    }
+}
+
+pub type ProgramIntentFuture<'a> = std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<CodeIntent, DspyError>> + Send + 'a>,
+>;
+
+impl Module for ProgramOfThought {
+    fn forward<'a>(&'a self, inputs: &'a Values) -> ModuleFuture<'a> {
+        Box::pin(async move {
+            let intent = self.construct(inputs).await?;
+            let mut outputs = Values::new();
+            outputs.insert("code".to_owned(), intent.code);
+            outputs.insert(
+                "execution_status".to_owned(),
+                "REFUSED:ACTUATION_REQUIRES_BROKER".to_owned(),
+            );
+            Ok(Prediction::new(outputs))
+        })
+    }
+
+    fn name(&self) -> &str {
+        "ProgramOfThought"
+    }
+}
+
+pub struct ProgramOfThoughtBuilder {
+    predictor: Predictor,
+    config: ProgramOfThoughtConfig,
+}
+
+impl ProgramOfThoughtBuilder {
+    pub fn new(predictor: Predictor) -> Self {
+        Self {
+            predictor,
+            config: ProgramOfThoughtConfig::default(),
+        }
+    }
+
+    pub fn language(mut self, language: CodeLanguage) -> Self {
+        self.config.language = language;
+        self
+    }
+
+    pub fn build(self) -> ProgramOfThought {
+        ProgramOfThought::new(self.predictor, self.config)
+    }
+}
+
 #[derive(Clone, Copy)]
 enum PromptMode {
     Predict,
@@ -251,9 +732,12 @@ fn compile_prompt(
             append_values(
                 &mut prompt,
                 "input",
-                signature
-                    .input_fields()
-                    .filter_map(|field| example.inputs.get(&field.name).map(|value| (&field.name, value))),
+                signature.input_fields().filter_map(|field| {
+                    example
+                        .inputs
+                        .get(&field.name)
+                        .map(|value| (&field.name, value))
+                }),
             );
             append_values(
                 &mut prompt,

@@ -40,6 +40,38 @@ impl Field {
     }
 }
 
+/// Historical DSPy-compatible input field constructor.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InputField(Field);
+
+impl InputField {
+    pub fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
+        Self(Field::input(name, description))
+    }
+}
+
+impl From<InputField> for Field {
+    fn from(value: InputField) -> Self {
+        value.0
+    }
+}
+
+/// Historical DSPy-compatible output field constructor.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OutputField(Field);
+
+impl OutputField {
+    pub fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
+        Self(Field::output(name, description))
+    }
+}
+
+impl From<OutputField> for Field {
+    fn from(value: OutputField) -> Self {
+        value.0
+    }
+}
+
 /// A typed DSPy signature.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Signature {
@@ -92,6 +124,11 @@ impl Signature {
         })
     }
 
+    /// Start a compatibility builder matching the historical Rust DSPy API.
+    pub fn builder() -> SignatureBuilder {
+        SignatureBuilder::default()
+    }
+
     pub fn fields(&self) -> &[Field] {
         &self.fields
     }
@@ -106,6 +143,14 @@ impl Signature {
         self.fields
             .iter()
             .filter(|field| field.kind == FieldKind::Output)
+    }
+
+    pub fn with_instructions(&self, instructions: impl Into<String>) -> Self {
+        Self {
+            name: self.name.clone(),
+            instructions: instructions.into(),
+            fields: self.fields.clone(),
+        }
     }
 
     pub fn validate_inputs(&self, values: &Values) -> Result<(), DspyError> {
@@ -129,6 +174,50 @@ impl Signature {
     pub fn validate_example(&self, example: &Example) -> Result<(), DspyError> {
         self.validate_inputs(&example.inputs)?;
         self.validate_outputs(&example.outputs)
+    }
+}
+
+/// Builder retained for source-level compatibility with the historical crate.
+#[derive(Clone, Debug)]
+pub struct SignatureBuilder {
+    name: String,
+    instructions: String,
+    fields: Vec<Field>,
+}
+
+impl Default for SignatureBuilder {
+    fn default() -> Self {
+        Self {
+            name: "anonymous".to_owned(),
+            instructions: String::new(),
+            fields: Vec::new(),
+        }
+    }
+}
+
+impl SignatureBuilder {
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    pub fn instructions(mut self, instructions: impl Into<String>) -> Self {
+        self.instructions = instructions.into();
+        self
+    }
+
+    pub fn input(mut self, field: InputField) -> Self {
+        self.fields.push(field.into());
+        self
+    }
+
+    pub fn output(mut self, field: OutputField) -> Self {
+        self.fields.push(field.into());
+        self
+    }
+
+    pub fn build(self) -> Result<Signature, DspyError> {
+        Signature::new(self.name, self.instructions, self.fields)
     }
 }
 
@@ -213,6 +302,41 @@ impl Prediction {
     pub fn get(&self, field: &str) -> Option<&str> {
         self.outputs.get(field).map(String::as_str)
     }
+
+    pub fn set(&mut self, field: impl Into<String>, value: impl Into<String>) {
+        self.outputs.insert(field.into(), value.into());
+    }
+
+    pub fn fields(&self) -> &Values {
+        &self.outputs
+    }
+
+    pub fn from_fields(outputs: Values) -> Self {
+        Self::new(outputs)
+    }
+}
+
+/// Historical name for a module result.
+pub type ModuleOutput = Prediction;
+
+/// Non-authoritative metadata supplied to module construction.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ModuleContext {
+    pub metadata: Values,
+}
+
+impl ModuleContext {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_metadata(&mut self, key: impl Into<String>, value: impl Into<String>) {
+        self.metadata.insert(key.into(), value.into());
+    }
+
+    pub fn get_metadata(&self, key: &str) -> Option<&str> {
+        self.metadata.get(key).map(String::as_str)
+    }
 }
 
 /// Typed failures at the DSPy construction boundary.
@@ -225,7 +349,11 @@ pub enum DspyError {
     Model(String),
     Parse(String),
     Metric(String),
+    Config(String),
+    Cache(String),
+    Assertion(String),
     UnknownTool(String),
+    Refused(String),
 }
 
 impl fmt::Display for DspyError {
@@ -238,16 +366,21 @@ impl fmt::Display for DspyError {
             Self::Model(detail) => write!(f, "model failure: {detail}"),
             Self::Parse(detail) => write!(f, "prediction parse failure: {detail}"),
             Self::Metric(detail) => write!(f, "metric failure: {detail}"),
+            Self::Config(detail) => write!(f, "configuration failure: {detail}"),
+            Self::Cache(detail) => write!(f, "cache failure: {detail}"),
+            Self::Assertion(detail) => write!(f, "assertion failure: {detail}"),
             Self::UnknownTool(tool) => write!(f, "REFUSED:UNKNOWN_TOOL:{tool}"),
+            Self::Refused(reason) => write!(f, "REFUSED:{reason}"),
         }
     }
 }
 
 impl Error for DspyError {}
 
+pub type Result<T> = std::result::Result<T, DspyError>;
+
 /// Object-safe future returned by language-model adapters.
-pub type ModelFuture<'a> =
-    Pin<Box<dyn Future<Output = Result<Completion, DspyError>> + Send + 'a>>;
+pub type ModelFuture<'a> = Pin<Box<dyn Future<Output = Result<Completion>> + Send + 'a>>;
 
 /// Minimal model boundary. Implementations provide inference, not actuation authority.
 pub trait LanguageModel: Send + Sync {
@@ -255,10 +388,13 @@ pub trait LanguageModel: Send + Sync {
 }
 
 /// Object-safe future returned by DSPy modules.
-pub type ModuleFuture<'a> =
-    Pin<Box<dyn Future<Output = Result<Prediction, DspyError>> + Send + 'a>>;
+pub type ModuleFuture<'a> = Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>>;
 
 /// A typed DSPy module that manufactures a prediction from admitted inputs.
 pub trait Module: Send + Sync {
     fn forward<'a>(&'a self, inputs: &'a Values) -> ModuleFuture<'a>;
+
+    fn name(&self) -> &str {
+        std::any::type_name::<Self>()
+    }
 }
