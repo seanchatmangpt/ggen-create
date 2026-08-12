@@ -67,6 +67,19 @@ def _record(check_id: str, passed: bool, detail: str = "") -> dict[str, Any]:
     }
 
 
+def _unsupported(check_id: str, detail: str) -> dict[str, Any]:
+    return {
+        "id": check_id,
+        "command": ["internal"],
+        "exit_code": 2,
+        "elapsed_ms": 0,
+        "passed": False,
+        "typed_failure": f"UNSUPPORTED:{check_id.upper()}",
+        "stdout_tail": "",
+        "stderr_tail": detail[-TAIL_LIMIT:],
+    }
+
+
 def _parse_structured(path: Path) -> None:
     data = path.read_bytes()
     if b"\x00" in data:
@@ -198,6 +211,24 @@ def _lane(root: Path, lane: str) -> int:
                     root,
                 ),
             ]
+        if (root / "Cargo.toml").is_file():
+            cargo = shutil.which("cargo")
+            if cargo is None:
+                checks.append(
+                    _unsupported(
+                        "rust_toolchain_missing",
+                        "Cargo.toml is present but cargo is not available; Rust verification cannot be admitted",
+                    )
+                )
+            else:
+                checks += [
+                    _run("rust_fmt", [cargo, "fmt", "--all", "--", "--check"], root),
+                    _run(
+                        "rust_test",
+                        [cargo, "test", "--workspace", "--all-targets", "--locked"],
+                        root,
+                    ),
+                ]
         parity = root / "scripts/gall_hygen_parity.py"
         if parity.is_file():
             checks += [
