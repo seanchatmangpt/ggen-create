@@ -236,3 +236,98 @@ impl UsageTracker {
             .map_err(|_| DspyError::Config("usage lock poisoned".to_owned()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::thread::sleep;
+
+    #[test]
+    fn usage_tracker_accumulates_requests_and_tokens_across_calls() {
+        let tracker = UsageTracker::new();
+        tracker.record(10, 5).expect("first record");
+        tracker.record(20, 8).expect("second record");
+
+        let stats = tracker.stats().expect("stats");
+        assert_eq!(stats.requests, 2);
+        assert_eq!(stats.prompt_tokens, 30);
+        assert_eq!(stats.completion_tokens, 13);
+    }
+
+    #[test]
+    fn usage_tracker_starts_at_zero() {
+        let tracker = UsageTracker::new();
+        let stats = tracker.stats().expect("stats");
+        assert_eq!(stats, UsageStats::default());
+    }
+
+    #[test]
+    fn disabled_cache_never_stores_or_returns_entries() {
+        let cache = CacheManager::new(CacheConfig {
+            enabled: false,
+            max_entries: 10,
+            ttl: Duration::from_secs(60),
+        });
+        cache.insert("k", "v").expect("insert is a no-op");
+        assert_eq!(cache.get("k").expect("get"), None);
+        let stats = cache.stats().expect("stats");
+        assert_eq!(stats, CacheStats::default());
+    }
+
+    #[test]
+    fn zero_capacity_cache_never_stores_entries() {
+        let cache = CacheManager::new(CacheConfig {
+            enabled: true,
+            max_entries: 0,
+            ttl: Duration::from_secs(60),
+        });
+        cache.insert("k", "v").expect("insert is a no-op");
+        assert_eq!(cache.get("k").expect("get"), None);
+    }
+
+    #[test]
+    fn cache_hit_returns_value_and_increments_hits() {
+        let cache = CacheManager::new(CacheConfig {
+            enabled: true,
+            max_entries: 10,
+            ttl: Duration::from_secs(60),
+        });
+        cache.insert("k", "v").expect("insert");
+        assert_eq!(cache.get("k").expect("get"), Some("v".to_owned()));
+        let stats = cache.stats().expect("stats");
+        assert_eq!(stats.hits, 1);
+        assert_eq!(stats.misses, 0);
+        assert_eq!(stats.inserts, 1);
+    }
+
+    #[test]
+    fn cache_entry_expires_after_ttl_and_is_evicted_on_read() {
+        let cache = CacheManager::new(CacheConfig {
+            enabled: true,
+            max_entries: 10,
+            ttl: Duration::from_millis(20),
+        });
+        cache.insert("k", "v").expect("insert");
+        sleep(Duration::from_millis(60));
+
+        assert_eq!(cache.get("k").expect("get after ttl"), None);
+        let stats = cache.stats().expect("stats");
+        assert_eq!(stats.misses, 1);
+        assert_eq!(stats.hits, 0);
+
+        // Entry was actually removed from the underlying map, not just reported
+        // expired: a second read must miss again rather than resurrecting it.
+        assert_eq!(cache.get("k").expect("second get"), None);
+        let stats = cache.stats().expect("stats after second read");
+        assert_eq!(stats.misses, 2);
+    }
+
+    #[test]
+    fn missing_key_increments_misses_without_touching_hits() {
+        let cache = CacheManager::new(CacheConfig::default());
+        assert_eq!(cache.get("absent").expect("get"), None);
+        let stats = cache.stats().expect("stats");
+        assert_eq!(stats.misses, 1);
+        assert_eq!(stats.hits, 0);
+    }
+}
