@@ -41,6 +41,7 @@ def _is_ci(path: str) -> bool:
             "scripts/gall_surfaces.py",
             "scripts/gall_checkpoint.py",
             "scripts/gall_hygen_parity.py",
+            "scripts/enterprise_architecture_check.py",
             "docs/ci.md",
             "docs/gall.md",
         }
@@ -69,6 +70,8 @@ def _is_build(path: str) -> bool:
         "rust-toolchain.toml",
         "deny.toml",
         "pyproject.toml",
+        "architecture/enterprise.toml",
+        "scripts/enterprise_architecture_check.py",
     }:
         return True
     if path.startswith(("src/", "crates/", "examples/", "benches/", "fixtures/", "schemas/")):

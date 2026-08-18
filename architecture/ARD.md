@@ -10,11 +10,11 @@
 
 ## Status
 
-Architecture authority admitted. Documentation parity rail implemented. Product runtime (CLI and package build) admitted on `main` with local unit evidence. The external P7 crown against a real `ggen` binary and upstream `hygen-create` render is `ALIVE`, published under exact-head CI (`.github/workflows/ci.yml`'s `p7-crown` job, push-to-main). The minimal agent topology (`receiver`/`correspondence-analyst`/`admission-referee`) is `ALIVE` with held-out replay evidence — see "Handoff topology" below.
+Architecture authority admitted. Documentation parity rail implemented. Product runtime (CLI and package build) admitted on `main` with local unit evidence. The external P7 crown against a real `ggen` binary and upstream `hygen-create` render is `ALIVE`, published under exact-head CI (`.github/workflows/ci.yml`'s `p7-crown` job, push-to-main). The minimal agent topology (`receiver`/`correspondence-analyst`/`admission-referee`) is `ALIVE` with held-out replay evidence — see "Handoff topology" below. The Rust DSPy capability is admitted as a CONSTRUCT-only reasoning substrate; its machine-readable enterprise authority contract is `architecture/enterprise.toml` and its decision record is ADR-0001.
 
 ## Document law
 
-This ARD is the architecture authority for `ggen-create v26.8.7`. It binds system boundaries, component responsibilities, object model, security refusals, and determinism law. Product behavior is normative in `product/PRD.md`; this document explains how that behavior is manufactured and verified. Sentences elsewhere in this document scoped to a specific prior version (e.g. "v26.8.6 does not admit skills or agents") are that version's historical record and are not rewritten by later releases — later sections state the current, superseding standing explicitly.
+This ARD is the architecture authority for `ggen-create v26.8.7`. It binds system boundaries, component responsibilities, object model, security refusals, and determinism law. Product behavior is normative in `product/PRD.md`; this document explains how that behavior is manufactured and verified. `architecture/enterprise.toml` is the executable contract for the Rust DSPy authority boundary and may narrow, but may not silently widen, the authority granted by this ARD. Sentences elsewhere in this document scoped to a specific prior version (e.g. "v26.8.6 does not admit skills or agents") are that version's historical record and are not rewritten by later releases — later sections state the current, superseding standing explicitly.
 
 ## System boundary
 
@@ -309,14 +309,48 @@ Receipt proves Checkpoint
 | capture engine | yes | bounded | observation graph | no |
 | correspondence engine | yes | candidate | correspondence graph | no |
 | synthesis agents | yes | bounded | candidate package graph | no |
+| Rust `ggen-dspy` | admitted inputs | bounded | typed reasoning/action/code intents | **no** |
 | admission referee | yes | admit/refuse | decision object | no |
 | documentation parity verifier | yes | no | receipt envelope | bounded (`npm run hola`) |
 | BRCE / product verifier | bounded | no | receipt envelope | yes (public `ggen`) |
+| host broker | admitted intent | policy | receipt envelope | **exclusive external DO** |
 | ggen | admitted inputs | deterministic | artifacts | through receipted runtime |
+
+## v26.8.7 Rust DSPy enterprise boundary
+
+`crates/ggen-dspy` is the admitted Rust reasoning and optimization substrate recovered from the historical `ggen-dspy` lineage. Its target architecture is intentionally not a literal restoration of historical execution semantics.
+
+It admits:
+
+- typed signatures, fields, values, examples and predictions;
+- provider-neutral language-model/module contracts;
+- Predict and Chain of Thought;
+- ReAct that manufactures `ActionIntent` and consumes broker-returned `ToolObservation`;
+- retrieval, MultiHopQA and SimplifiedBaleen;
+- Program of Thought that manufactures `CodeIntent` and consumes broker-returned `ExecutionResult`;
+- labeled/bootstrap few-shot and bounded MIPRO-style optimization;
+- evaluation, assertions, explicit config/context/cache/usage;
+- completion/chat/JSON/integrated/fallback adapter surfaces;
+- reusable agent pattern descriptions.
+
+It refuses ambient authority. The crate does not own process execution, filesystem actuation, network sockets, credentials, generated-code execution, receipts, or standing. `Tool` is metadata, not an executable callback. The host broker remains the exclusive external DO boundary.
+
+Enterprise evidence is split deliberately:
+
+| Artifact | Role |
+| --- | --- |
+| `architecture/ADR-0001-RUST-DSPY-AUTHORITY.md` | authority decision and supersession law |
+| `architecture/ENTERPRISE_ARCHITECTURE.md` | business/application/data/technology/security/operations target architecture |
+| `architecture/enterprise.toml` | machine-readable admitted invariants |
+| `scripts/enterprise_architecture_check.py` | executable architecture conformance gate |
+| `tests/test_enterprise_architecture.py` | positive and falsifier tests |
+| `docs/ENTERPRISE_READINESS.md` | integration/environment/release/production gates |
+
+A change to `architecture/enterprise.toml` is both docs-owned and build-owned so architecture authority cannot change without implementation evidence.
 
 ## Evidence topology
 
-`ggen-create v26.8.6` uses an 80/20 ERRC CI topology:
+`ggen-create v26.8.7` uses an 80/20 ERRC CI topology:
 
 ```text
 exact-head admission
@@ -328,9 +362,9 @@ exact-head admission
 | Lane | Owned surfaces |
 | --- | --- |
 | `ci_deep` | `.github/**`, `scripts/ci_*.py`, `scripts/gall_*.py`, `tests/test_ci_*.py`, `docs/ci.md`, `docs/gall.md` |
-| `docs_deep` | `README.md`, `BOOTSTRAP.md`, `docs/**`, Markdown files |
+| `docs_deep` | `README.md`, `BOOTSTRAP.md`, `docs/**`, `architecture/**`, Markdown files |
 | `ontology_deep` | `ontology/**` |
-| `build_deep` | Cargo/toolchain, `src/**`, `examples/**`, non-CI tests, unknown future surfaces |
+| `build_deep` | Cargo/toolchain, `src/**`, `crates/**`, `examples/**`, non-CI tests, unknown future surfaces, `architecture/enterprise.toml` |
 
 Admission receipt schema: `ggen-create.ci.errc.receipt.v2`
 
@@ -429,6 +463,7 @@ INSUFFICIENT_EXEMPLARS_REFUSED
 UNBOUNDED_VARIATION_REFUSED
 UNRECEIPTED_ACTUATION_REFUSED
 RAW_BLOCK_TERMINATOR_REFUSED
+REFUSED:ACTUATION_REQUIRES_BROKER
 ```
 
 ## Determinism
@@ -450,6 +485,8 @@ v26.8.6 proves determinism through:
 - package no-op replay on unchanged capture;
 - exact-head CI revision binding.
 
+The v26.8.7 Rust DSPy layer additionally requires bounded optimizer search and no ambient clock, randomness, network, filesystem, or process authority for kernel operation, as encoded in `architecture/enterprise.toml`.
+
 ## Module map for Phase 1 runtime
 
 | Module | Responsibility |
@@ -469,6 +506,7 @@ Repository evidence modules already admitted:
 | `scripts/gall_checkpoint.py` | repository GALL crown |
 | `scripts/ci_admit.py` | exact-head admission and lane execution |
 | `scripts/ci_router.py` | deterministic path routing |
+| `scripts/enterprise_architecture_check.py` | Rust DSPy enterprise authority conformance |
 
 ## Reference binding
 
@@ -502,10 +540,14 @@ No agents are required for this slice.
 
 ## Architecture falsifiers
 
-The v26.8.6 architecture is falsified if:
+The v26.8.7 architecture is falsified if:
 
 - create-time code directly manufactures target artifacts without an admitted package boundary;
 - documentation parity passes while module contracts diverge from this ARD;
 - GALL crown claims are inferred from skipped lanes;
 - package emission cannot be replayed from content-addressed observations;
-- verification requires private `ggen` hooks not available through public CLI boundaries.
+- verification requires private `ggen` hooks not available through public CLI boundaries;
+- `ggen-dspy` gains ambient process, filesystem, network, FFI, unsafe, or credential authority without an explicit superseding ADR;
+- ReAct or Program of Thought directly executes tools/code instead of manufacturing typed intents;
+- the reasoning layer can issue its own authoritative execution receipt or standing;
+- an architecture-contract change bypasses build evidence.
