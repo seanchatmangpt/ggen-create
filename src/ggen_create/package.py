@@ -45,7 +45,24 @@ def _turtle_literal(value: str) -> str:
     return f'"{escaped}"'
 
 
-def ontology_text(value: str) -> str:
+def subject_local_name(generator: str) -> str:
+    """Mint a per-generator local name for the gc:subject_<slug> IRI.
+
+    Deterministic and collision-resistant across different generator names:
+    the slug is the URL-safe lowercase alnum/underscore projection of the
+    generator name, disambiguated with a short digest of the full name so
+    that two names differing only in stripped characters (e.g. "a-b" and
+    "a_b") never collide.
+    """
+    slug = "".join(
+        char.lower() if char.isalnum() else "_" for char in generator
+    ).strip("_")
+    slug = slug or "generator"
+    digest = hashlib.sha256(generator.encode("utf-8")).hexdigest()[:8]
+    return f"subject_{slug}_{digest}"
+
+
+def ontology_text(value: str, generator: str) -> str:
     values = values_for(value)
     predicates = []
     for variable in VARIABLES:
@@ -53,25 +70,27 @@ def ontology_text(value: str) -> str:
         predicates.append(
             f"    gc:{variable} {_turtle_literal(values[variable])} {suffix}"
         )
+    subject = subject_local_name(generator)
     return (
         f"@prefix gc: <{PREFIX}> .\n\n"
-        "gc:subject a gc:GenerationSubject ;\n"
+        f"gc:{subject} a gc:GenerationSubject ;\n"
         + "\n".join(predicates)
         + "\n"
     )
 
 
-def sparql_query() -> str:
+def sparql_query(generator: str) -> str:
     selected = " ".join("?" + variable for variable in VARIABLES)
     predicates = []
     for variable in VARIABLES:
         suffix = ";" if variable != VARIABLES[-1] else "."
         predicates.append(f"      gc:{variable} ?{variable} {suffix}")
+    subject = subject_local_name(generator)
     return (
         f"PREFIX gc: <{PREFIX}>\n"
         f"SELECT {selected}\n"
         "WHERE {\n"
-        "  gc:subject a gc:GenerationSubject ;\n"
+        f"  gc:{subject} a gc:GenerationSubject ;\n"
         + "\n".join(predicates)
         + "\n}"
     )
@@ -159,7 +178,7 @@ def _planned_files(session_path: Path) -> dict[str, bytes]:
         )
     root = session_path.parent
     files = sorted(admitted_files(session_path))
-    query = sparql_query()
+    query = sparql_query(session["name"])
     planned: dict[str, bytes] = {}
     # This is intentionally the frontmatter schema only. A project version is
     # a declarative-schema marker in ggen and makes the manifest ambiguous.
@@ -171,7 +190,7 @@ def _planned_files(session_path: Path) -> dict[str, bytes]:
         "[templates]\n"
         'dir = "templates"\n'
     ).encode("utf-8")
-    planned["ontology.ttl"] = ontology_text(seed).encode("utf-8")
+    planned["ontology.ttl"] = ontology_text(seed, session["name"]).encode("utf-8")
 
     template_manifest: list[dict[str, Any]] = []
     template_targets: dict[str, str] = {}
@@ -259,17 +278,59 @@ def _next_archive(target: Path) -> Path:
         index += 1
 
 
+def _merge_ontology_bytes(existing: bytes, generated: bytes) -> bytes:
+    existing_text = existing.decode("utf-8")
+    if "gc:subject" in existing_text:
+        return generated
+    generated_text = generated.decode("utf-8")
+    merged = existing_text.rstrip("\n") + "\n\n" + generated_text
+    return merged.encode("utf-8")
+
+
+def _build_package_merge(
+    session: dict[str, Any],
+    planned: dict[str, bytes],
+    target: Path,
+) -> BuildResult:
+    changed = False
+    target.mkdir(parents=True, exist_ok=True)
+    for rel, content in planned.items():
+        path = target / rel
+        if rel == "ggen.toml" and path.exists():
+            # Existing pack owns its manifest: leave it byte-for-byte alone.
+            continue
+        if rel == "ontology.ttl" and path.exists():
+            existing_bytes = path.read_bytes()
+            merged_bytes = _merge_ontology_bytes(existing_bytes, content)
+            if merged_bytes != existing_bytes:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(merged_bytes)
+                changed = True
+            continue
+        if path.exists() and path.read_bytes() == content:
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        changed = True
+    return BuildResult(target, changed, None, target / "receipt.json")
+
+
 def build_package(
     session_path: Path,
     output_root: Path,
     *,
     force: bool = False,
+    merge: bool = False,
 ) -> BuildResult:
     session = load_session(session_path)
     planned = _planned_files(session_path)
     output_root = output_root.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
     target = output_root / session["name"]
+
+    if merge:
+        return _build_package_merge(session, planned, target)
+
     archived: Path | None = None
 
     if target.exists():
@@ -382,7 +443,7 @@ def rewrite_package_parameter(package_dir: Path, value: str) -> dict[str, Any]:
         json.dumps(metadata, indent=2, sort_keys=True),
         encoding="utf-8",
     )
-    ontology_path.write_text(ontology_text(value), encoding="utf-8")
+    ontology_path.write_text(ontology_text(value, generator), encoding="utf-8")
     receipt = _receipt_document(
         _package_files(package_dir),
         operation="parameter-rewrite",

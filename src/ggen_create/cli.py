@@ -149,6 +149,7 @@ def parser() -> argparse.ArgumentParser:
     generate = sub.add_parser("generate", aliases=["g"])
     generate.add_argument("--output", default="_ggen")
     generate.add_argument("--force", action="store_true")
+    generate.add_argument("--merge", action="store_true")
     sub.add_parser("abort")
 
     verify = sub.add_parser("verify")
@@ -444,6 +445,7 @@ def run(argv: Sequence[str] | None = None) -> int:
             _find(project),
             Path(args.output),
             force=args.force,
+            merge=args.merge,
         )
         value = {
             "package": str(built.package_dir),
