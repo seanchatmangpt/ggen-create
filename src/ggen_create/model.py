@@ -15,11 +15,17 @@ from typing import Any
 # session-compatibility decision, not something that should track every package
 # release automatically.
 APP_VERSION = "0.4.0"
+# Phase 2 (multiple seeds, product/PRD.md "Infer -- Phase 2: multiple seeds"): a session is
+# migrated in place from APP_VERSION to MULTI_SEED_VERSION only when a second seed is added
+# (session.py::add_seed) -- a plain `start`/`usename` session stays at APP_VERSION, byte-
+# identical to before this phase, per this phase's own back-compat requirement.
+MULTI_SEED_VERSION = "0.5.0"
 SUPPORTED_SESSION_VERSIONS = (
     "0.2.0",
     "0.2.1",
     "0.3.0",
     APP_VERSION,
+    MULTI_SEED_VERSION,
 )
 SESSION_FILE = "ggen-create.json"
 ABOUT = (

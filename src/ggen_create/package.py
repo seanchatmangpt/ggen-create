@@ -9,13 +9,13 @@ import tempfile
 from typing import Any
 
 from .cases import (
-    parameterize_body,
-    parameterize_path,
-    render_concrete,
+    parameterize_body_many,
+    parameterize_path_many,
+    render_concrete_many,
     values_for,
 )
 from .model import BuildResult, GgenCreateError, validate_identifier
-from .session import admitted_files, load_session
+from .session import admitted_files, load_session, seeds_for_session
 
 PREFIX = "https://ggen.io/ontology/ggen-create#"
 VARIABLES = [
@@ -58,6 +58,52 @@ def ontology_text(value: str) -> str:
         "gc:subject a gc:GenerationSubject ;\n"
         + "\n".join(predicates)
         + "\n"
+    )
+
+
+def _variables_for_seed(seed_name: str) -> list[str]:
+    if seed_name == "name":
+        return list(VARIABLES)
+    return [f"{seed_name}_{variable}" for variable in VARIABLES]
+
+
+def ontology_text_many(seeds: list[tuple[str, str]]) -> str:
+    """Phase 2: multiple seeds. With `seeds == [("name", value)]` (the legacy
+    single-seed shape), produces byte-identical output to `ontology_text(value)`."""
+    predicates: list[str] = []
+    for seed_name, seed_value in seeds:
+        values = values_for(seed_value)
+        for variable, qualified in zip(VARIABLES, _variables_for_seed(seed_name)):
+            predicates.append(f"    gc:{qualified} {_turtle_literal(values[variable])} ;")
+    predicates[-1] = predicates[-1][:-1] + "."
+    return (
+        f"@prefix gc: <{PREFIX}> .\n\n"
+        "gc:subject a gc:GenerationSubject ;\n"
+        + "\n".join(predicates)
+        + "\n"
+    )
+
+
+def sparql_query_many(seeds: list[tuple[str, str]]) -> str:
+    """Phase 2: multiple seeds. With `seeds == [("name", value)]`, produces
+    byte-identical output to `sparql_query()`."""
+    all_variables = [
+        qualified
+        for seed_name, _ in seeds
+        for qualified in _variables_for_seed(seed_name)
+    ]
+    selected = " ".join("?" + variable for variable in all_variables)
+    predicates = [
+        f"      gc:{variable} ?{variable} ;" for variable in all_variables
+    ]
+    predicates[-1] = predicates[-1][:-1] + "."
+    return (
+        f"PREFIX gc: <{PREFIX}>\n"
+        f"SELECT {selected}\n"
+        "WHERE {\n"
+        "  gc:subject a gc:GenerationSubject ;\n"
+        + "\n".join(predicates)
+        + "\n}"
     )
 
 
@@ -157,9 +203,10 @@ def _planned_files(session_path: Path) -> dict[str, bytes]:
             "PARAMETER_NOT_SEEDED_REFUSED",
             "run 'ggen-create usename <value>'",
         )
+    seeds = seeds_for_session(session)
     root = session_path.parent
     files = sorted(admitted_files(session_path))
-    query = sparql_query()
+    query = sparql_query_many(seeds)
     planned: dict[str, bytes] = {}
     # This is intentionally the frontmatter schema only. A project version is
     # a declarative-schema marker in ggen and makes the manifest ambiguous.
@@ -171,15 +218,15 @@ def _planned_files(session_path: Path) -> dict[str, bytes]:
         "[templates]\n"
         'dir = "templates"\n'
     ).encode("utf-8")
-    planned["ontology.ttl"] = ontology_text(seed).encode("utf-8")
+    planned["ontology.ttl"] = ontology_text_many(seeds).encode("utf-8")
 
     template_manifest: list[dict[str, Any]] = []
     template_targets: dict[str, str] = {}
     seed_targets: dict[str, str] = {}
     for index, rel in enumerate(files):
         source = (root / rel).read_text(encoding="utf-8")
-        target, path_replacements = parameterize_path(rel, seed)
-        concrete_target, _ = render_concrete(rel, seed, seed)
+        target, path_replacements = parameterize_path_many(rel, seeds)
+        concrete_target, _ = render_concrete_many(rel, seeds, seeds)
         if session["gen_parent_dir"]:
             target = "{{ row.name }}/" + target
             concrete_target = seed + "/" + concrete_target
@@ -195,7 +242,7 @@ def _planned_files(session_path: Path) -> dict[str, bytes]:
             rel,
             code="TARGET_COLLISION_REFUSED",
         )
-        body, body_replacements = parameterize_body(source, seed)
+        body, body_replacements = parameterize_body_many(source, seeds)
         query_indented = "\n".join("    " + line for line in query.splitlines())
         template = (
             "---\n"

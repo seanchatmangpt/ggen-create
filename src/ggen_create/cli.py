@@ -17,6 +17,7 @@ from .runtime import ReceiptStore
 from .session import (
     abort_session,
     add_paths,
+    add_seed,
     find_session,
     remove_paths,
     rename_session,
@@ -179,6 +180,9 @@ def parser() -> argparse.ArgumentParser:
     )
     seed = parameter_sub.add_parser("seed")
     seed.add_argument("value")
+    add_seed_parser = parameter_sub.add_parser("add-seed")
+    add_seed_parser.add_argument("name")
+    add_seed_parser.add_argument("value")
 
     package = sub.add_parser("package")
     package_sub = package.add_subparsers(
@@ -494,8 +498,12 @@ def run(argv: Sequence[str] | None = None) -> int:
             abort_session(_find(project))
             value = "capture aborted"
     elif args.command == "parameter":
-        set_seed(_find(project), args.value)
-        value = {"seed": args.value}
+        if args.parameter_command == "add-seed":
+            add_seed(_find(project), args.name, args.value)
+            value = {"seed_name": args.name, "seed_value": args.value}
+        else:
+            set_seed(_find(project), args.value)
+            value = {"seed": args.value}
     elif args.command == "package":
         if args.package_command == "build":
             value = _broker_execute(

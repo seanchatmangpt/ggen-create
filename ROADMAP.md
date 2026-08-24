@@ -86,15 +86,24 @@ This is the gate for `v26.8.6` GA.
 
 ## Phase 2 — Multiple parameters and collision law
 
+**State: PARTIAL_ALIVE.** `product/PRD.md`'s "Infer — Phase 2: multiple seeds" and
+`architecture/ARD.md`'s "Correspondence engine — Phase 2" sections are the normative spec
+(written this pass; none existed before). Two of seven sub-items closed with real
+implementation + tests:
+
 Add:
 
-- multiple seeds;
-- overlapping occurrence detection;
-- path/content consistency;
-- declared constants;
-- transform ambiguity;
-- explicit binary/opaque-copy policy;
-- typed negative fixtures.
+- ~~multiple seeds~~ **ADMITTED** — `session.py::add_seed`/`seeds_for_session`, session
+  format version `0.5.0`, back-compat-preserving (a single-seed `0.4.0` session is byte-
+  identical to before);
+- ~~overlapping occurrence detection~~ **ADMITTED** — `cases.py::replacements_for_many`,
+  refuses `PARAMETER_COLLISION_REFUSED` on a genuine cross-seed span overlap;
+- path/content consistency — not attempted this pass;
+- declared constants — not attempted this pass;
+- transform ambiguity (beyond the cross-seed overlap case above) — not attempted this pass;
+- explicit binary/opaque-copy policy — not attempted this pass;
+- typed negative fixtures — the two closed sub-items above have real fixtures
+  (`tests/test_multi_seed.py`); the full matrix across all seven sub-items is not attempted.
 
 Exit:
 

@@ -79,7 +79,7 @@ Verification may subprocess public `ggen` inside isolated staging. That actuatio
 | Layer | Deferred |
 | --- | --- |
 | structural anti-unification | Tree-sitter per-language admission |
-| multi-parameter collision law | Phase 2 |
+| ~~multi-parameter collision law (multiple seeds + overlapping-occurrence detection)~~ | **ADMITTED, v26.8.7** — see "Correspondence engine — Phase 2" below. Declared constants, transform ambiguity beyond cross-seed overlap, binary/opaque-copy policy, and the `MULTI_PARAMETER_PARITY_ALIVE` exit gate remain deferred within Phase 2 |
 | multi-exemplar variation axes | Phase 4 |
 | skills and agents (full topology, 6 remaining agents) | Phase 6+ |
 | ~~minimal agent topology (receiver/correspondence-analyst/admission-referee)~~ | **ADMITTED, v26.8.7** |
@@ -161,6 +161,69 @@ upper_snake → snake → kebab → pascal → camel → upper → capitalized �
 ```
 
 Occurrences require start-of-string or a non-alphanumeric left neighbor.
+
+### Correspondence engine — Phase 2: multiple seeds
+
+Extends the capture engine's session manifest with a session-format version bump, not a
+breaking change to the existing `v26.8.6` six-field shape: a session stays at
+`hygen_create_version "0.4.0"` (the current `v26.8.6` format) until a second seed is added,
+at which point it is migrated in place to `"0.5.0"` and gains a seventh field:
+
+```json
+{
+  "about": "...",
+  "hygen_create_version": "0.5.0",
+  "name": "<generator>",
+  "files_and_dirs": {},
+  "templatize_using_name": "HelloWorld",
+  "gen_parent_dir": false,
+  "seeds": [
+    {"name": "name", "value": "HelloWorld"},
+    {"name": "greeting", "value": "Bonjour"}
+  ]
+}
+```
+
+`templatize_using_name` remains present and authoritative for `"0.4.0"` (single-seed)
+sessions; for `"0.5.0"` sessions it is kept in sync with `seeds[0]` (the seed named `name`)
+purely for read-compatibility with tooling that only knows the six-field shape — the `seeds`
+list is authoritative once present.
+
+v26.8.7 (Phase 2) implementation module: `session.py::add_seed`, `session.py::seeds_for_session`
+
+Variable-namespace rule: the seed named `name` keeps the unprefixed `row.<transform>` Tera
+bindings `v26.8.6` already defines (`row.pascal`, `row.snake`, ...); every other seed's ten
+transform forms are scoped under its own name (`row.<seed_name>_<transform>`, e.g.
+`row.greeting_pascal`) so two seeds' bindings can never collide with each other by name.
+
+Overlapping-occurrence detection: the combined scan (`cases.py::replacements_for_many`) walks
+all seeds' transform literals together. Two DIFFERENT seeds whose matched literals would
+produce overlapping (not merely adjacent) spans in the same text is refused
+(`PARAMETER_COLLISION_REFUSED`, already declared below but unimplemented before this phase) —
+never silently resolved by preferring one seed's match over the other's. A single seed's own
+internal duplicate-literal resolution (the existing priority order above) is unchanged.
+
+v26.8.7 implementation modules: `cases.py`, `package.py`, `inspect.py` — the
+`session["templatize_using_name"]` + `parameterize_body`/`parameterize_path`/`render_concrete`
+call sites in these two modules switched to `seeds_for_session(session)` + the corresponding
+`_many` function, so a two-seed session actually flows through capture, `status`, and package
+build (`ontology.ttl`/SPARQL query gain one qualified predicate set per additional seed; see
+`ontology_text_many`/`sparql_query_many`), not only the internal case-transform pipeline.
+
+**`verify.py` deliberately NOT touched this pass** — corrected after closer reading, not
+assumed at spec-writing time: its two `templatize_using_name` call sites
+(`_expected_artifacts`, `verify_parity`) are the explicit-value *variation*-parity rail (the
+P0–P7 crown: substitute a caller-given `variation_value` for the seed and verify the real
+`ggen` binary reproduces it byte-exact) — a materially different feature from capture/build
+flow, with no defined multi-seed equivalent in this phase's spec above (what would it mean to
+substitute new values for *several* seeds at once and verify parity against a real `ggen`
+run — genuinely unscoped, not a mechanical extension of the collision-detection work above).
+A real gap, named here rather than silently left inconsistent with the rest of this section.
+
+**Deferred within Phase 2** (named, not silently assumed closed): declared constants,
+transform ambiguity beyond the cross-seed overlap case above, explicit binary/opaque-copy
+policy, the full typed-negative-fixture matrix, and the `MULTI_PARAMETER_PARITY_ALIVE` exit
+gate itself (requires all seven `ROADMAP.md` Phase 2 sub-items, not multiple-seeds alone).
 
 ### Graph synthesizer
 

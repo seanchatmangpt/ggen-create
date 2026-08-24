@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .cases import parameterize_body, parameterize_path
+from .cases import parameterize_body_many, parameterize_path_many
 from .model import GgenCreateError
-from .session import admitted_files, load_session
+from .session import admitted_files, load_session, seeds_for_session
 
 
 def inspect_session(session_path: Path) -> dict[str, Any]:
@@ -15,14 +15,15 @@ def inspect_session(session_path: Path) -> dict[str, Any]:
         raise GgenCreateError(
             "PARAMETER_NOT_SEEDED_REFUSED", "run 'ggen-create usename <value>'"
         )
+    seeds = seeds_for_session(session)
 
     root = session_path.parent
     files: list[dict[str, Any]] = []
     total = 0
     for rel in admitted_files(session_path):
         source = (root / rel).read_text(encoding="utf-8")
-        target_template, path_replacements = parameterize_path(rel, seed)
-        _, content_replacements = parameterize_body(source, seed)
+        target_template, path_replacements = parameterize_path_many(rel, seeds)
+        _, content_replacements = parameterize_body_many(source, seeds)
         count = len(path_replacements) + len(content_replacements)
         total += count
         files.append(
@@ -38,6 +39,7 @@ def inspect_session(session_path: Path) -> dict[str, Any]:
         "generator": session["name"],
         "session": str(session_path),
         "seed": seed,
+        "seeds": [{"name": name, "value": value} for name, value in seeds],
         "gen_parent_dir": session["gen_parent_dir"],
         "file_count": len(files),
         "replacement_count": total,
@@ -48,9 +50,16 @@ def inspect_session(session_path: Path) -> dict[str, Any]:
 def format_human(report: dict[str, Any], *, verbose: bool = False) -> str:
     lines = [
         f"Using the string \"{report['seed']}\" to templatize files",
-        "",
-        "The following files are included in the generator:",
     ]
+    extra_seeds = [s for s in report.get("seeds", []) if s["name"] != "name"]
+    for extra in extra_seeds:
+        lines.append(f"Also using \"{extra['value']}\" for seed \"{extra['name']}\"")
+    lines.extend(
+        [
+            "",
+            "The following files are included in the generator:",
+        ]
+    )
     for file_info in report["files"]:
         lines.append(
             f"[included] - {file_info['path']} "

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ggen.io/schemas/ggen-create/capture.schema.json",
   "title": "ggen-create compatible capture session",
-  "description": "Capture state compatible with upstream hygen-create 0.2 sessions and ggen-create 0.3/0.4 sessions. The session file location is the capture root.",
+  "description": "Capture state compatible with upstream hygen-create 0.2 sessions and ggen-create 0.3/0.4 sessions. The session file location is the capture root. Version 0.5.0 (Phase 2: multiple seeds, architecture/ARD.md \"Correspondence engine -- Phase 2\") adds one field, `seeds`, via the conditional branch below -- the six-field 0.2.0-0.4.0 shape is otherwise unchanged.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -20,7 +20,7 @@
     },
     "hygen_create_version": {
       "type": "string",
-      "enum": ["0.2.0", "0.2.1", "0.3.0", "0.4.0"]
+      "enum": ["0.2.0", "0.2.1", "0.3.0", "0.4.0", "0.5.0"]
     },
     "name": {
       "type": "string",
@@ -48,6 +48,38 @@
     },
     "gen_parent_dir": {
       "type": "boolean"
+    },
+    "seeds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "value"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 _.-]{0,126}[A-Za-z0-9])?$"
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9 _.-]{0,126}[A-Za-z0-9])?$"
+          }
+        }
+      }
     }
+  },
+  "if": {
+    "properties": {"hygen_create_version": {"const": "0.5.0"}}
+  },
+  "then": {
+    "required": ["seeds"]
+  },
+  "else": {
+    "not": {"required": ["seeds"]}
   }
 }
