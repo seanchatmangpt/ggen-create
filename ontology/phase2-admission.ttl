@@ -1,2 +1,14 @@
 @prefix gc: <https://ggen.io/ontology/ggen-create#> .
-gc:Phase2Policy a gc:AdmissionPolicy .
+@prefix dct: <http://purl.org/dc/terms/> .
+
+gc:Phase2Policy a gc:AdmissionPolicy ;
+  dct:identifier "MULTI_PARAMETER_PARITY_ALIVE" ;
+  gc:requires gc:MultipleSeeds, gc:OverlapCollisionLaw, gc:PathContentConsistency, gc:DeclaredConstants, gc:TransformAmbiguityLaw, gc:OpaqueCopyPolicy, gc:TypedNegativeFixtures .
+
+gc:MultipleSeeds a gc:Capability ; gc:state "ADMITTED" .
+gc:OverlapCollisionLaw a gc:Capability ; gc:state "ADMITTED" .
+gc:PathContentConsistency a gc:Capability ; gc:state "UNKNOWN" .
+gc:DeclaredConstants a gc:Capability ; gc:state "UNKNOWN" .
+gc:TransformAmbiguityLaw a gc:Capability ; gc:state "UNKNOWN" .
+gc:OpaqueCopyPolicy a gc:Capability ; gc:state "UNKNOWN" .
+gc:TypedNegativeFixtures a gc:Capability ; gc:state "PARTIAL_ALIVE" .
