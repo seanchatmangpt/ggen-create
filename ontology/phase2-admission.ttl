@@ -1,0 +1,2 @@
+@prefix gc: <https://ggen.io/ontology/ggen-create#> .
+gc:Phase2Policy a gc:AdmissionPolicy .
