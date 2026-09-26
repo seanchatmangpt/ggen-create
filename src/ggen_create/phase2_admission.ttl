@@ -1,0 +1,19 @@
+@prefix ce: <https://seanchatman.github.io/ggen-create/phase2#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ce:Phase2Admission a ce:CapabilityContract ;
+  ce:authorityCeiling ce:CONSTRUCT_ONLY ;
+  ce:requires ce:MultipleSeeds, ce:CollisionLaw, ce:PathContentConsistency,
+    ce:DeclaredConstants, ce:TransformAmbiguityLaw, ce:OpaqueCopyPolicy,
+    ce:TypedNegativeFixtures ;
+  prov:wasDerivedFrom ce:Phase2PRD .
+
+ce:MultipleSeeds a ce:Capability ; ce:evidence "tests/test_multi_seed.py::MultiSeedSessionTests" .
+ce:CollisionLaw a ce:Capability ; ce:evidence "tests/test_multi_seed.py::MultiSeedCollisionLawTests" .
+ce:PathContentConsistency a ce:Capability .
+ce:DeclaredConstants a ce:Capability .
+ce:TransformAmbiguityLaw a ce:Capability .
+ce:OpaqueCopyPolicy a ce:Capability .
+ce:TypedNegativeFixtures a ce:Capability .
+ce:CONSTRUCT_ONLY a ce:AuthorityCeiling .
