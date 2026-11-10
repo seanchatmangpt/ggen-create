@@ -79,3 +79,8 @@ The bundle contains:
 ## Claim ceiling
 
 A valid bundle proves only that a bounded predecessor observation was deterministically converted into a coherent, replayable receiving input. It does **not** prove real `ggen sync`, behavioral equivalence, production readiness, certification, release, or predecessor retirement.
+
+## See Also
+
+`docs/CUTOVER.md` documents `ggen-create cutover`, the actuation and dry-run commands used
+by the v26.11.9 srve switch-over.

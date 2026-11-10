@@ -247,6 +247,24 @@ def parser() -> argparse.ArgumentParser:
     skill_execute.add_argument("--arguments")
     skill_execute.add_argument("--confirm", action="store_true")
 
+    cutover = sub.add_parser("cutover")
+    cutover_sub = cutover.add_subparsers(dest="cutover_command", required=True)
+    dryrun = cutover_sub.add_parser("dryrun")
+    dryrun.add_argument("--ticket", action="append", help="T-NNN; default all")
+    dryrun.add_argument("--selftest", action="store_true")
+    dryrun.add_argument("--home", help="ecosystem root; default $HOME")
+    dryrun.add_argument("--receipt", help="write the report here; default stdout only")
+    for verb in ("plan", "power", "verify", "rollback"):
+        cp = cutover_sub.add_parser(verb)
+        cp.add_argument("--subject-root", default=".")
+        cp.add_argument("--output-root", default="cutover")
+        if verb == "plan":
+            cp.add_argument("--dry-run", action="store_true", default=True)
+        if verb == "verify":
+            cp.add_argument("--replay", action="store_true")
+        if verb in ("power", "rollback"):
+            cp.add_argument("--confirm", action="store_true")
+
     agents = sub.add_parser("agents")
     agents_sub = agents.add_subparsers(
         dest="agents_command",
@@ -682,6 +700,36 @@ def run(argv: Sequence[str] | None = None) -> int:
             "doctor.inspect",
             {"project": project},
         )["result"]
+    elif args.command == "cutover" and args.cutover_command != "dryrun":
+        # The subject root is the Broker's confinement root, so --subject-root works from any cwd.
+        registry = SkillRegistry()
+        value = Broker(Path(args.subject_root).resolve()).execute(
+            registry.plan(
+                f"cutover.{args.cutover_command}",
+                {
+                    "subject_root": ".",
+                    "output_root": args.output_root,
+                    "replay": bool(getattr(args, "replay", False)),
+                },
+            ),
+            confirm=bool(getattr(args, "confirm", False)),
+        )
+    elif args.command == "cutover":
+        from .cutover_dryrun import run as dryrun_run
+
+        report = dryrun_run(
+            Path(args.home) if args.home else None,
+            args.ticket,
+            do_selftest=args.selftest,
+        )
+        if args.receipt:
+            Path(args.receipt).write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n"
+            )
+        _print(report, True)
+        if report["verdict"] == "VACUOUS_DRYRUN":
+            raise GgenCreateError("VACUOUS_DRYRUN", "a probe accepted its mutation")
+        return 0 if report["verdict"].startswith("READY") else 1
     else:
         raise GgenCreateError(
             "COMMAND_NOT_IMPLEMENTED_REFUSED",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 from pathlib import Path
 import shutil
@@ -202,12 +203,33 @@ def _write_artifact_projection(
         target.write_bytes(actual)
 
 
+@functools.lru_cache(maxsize=None)
+def _supports_skip_ea_admission(ggen_bin: str) -> bool:
+    try:
+        probe = subprocess.run(
+            [ggen_bin, "sync", "run", "--help"],
+            text=True, capture_output=True, check=False, timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return "--skip-ea-admission" in probe.stdout + probe.stderr
+
+
 def _run_ggen(
     package_dir: Path,
     ggen_bin: str,
     sync_args: list[str],
 ) -> dict[str, Any]:
     command = [ggen_bin, *sync_args]
+    # ggen >= 26.11 refuses a sync with no ea.graph.json (FM-LAW-015) unless told to skip EA
+    # admission; generated packages carry no architecture graph. Older binaries lack the flag.
+    if (
+        sync_args[:2] == ["sync", "run"]
+        and "--skip-ea-admission" not in sync_args
+        and not (package_dir / "ea.graph.json").exists()
+        and _supports_skip_ea_admission(ggen_bin)
+    ):
+        command.append("--skip-ea-admission")
     completed = subprocess.run(
         command,
         cwd=package_dir,

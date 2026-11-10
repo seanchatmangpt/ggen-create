@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ggen-create.cutover.dryrun.v1",
+  "type": "object",
+  "required": ["schema", "generated_at", "verdict", "counts", "identity", "readonly_proof", "tickets"],
+  "properties": {
+    "schema": {"const": "ggen-create.cutover.dryrun.v1"},
+    "generated_at": {"type": "string"},
+    "verdict": {"enum": ["READY_TO_REHEARSE", "READY_TO_REHEARSE_PENDING_T1_T2", "NOT_READY",
+                         "BLOCKED:UNSTABLE_EVIDENCE", "VACUOUS_DRYRUN"]},
+    "counts": {
+      "type": "object",
+      "required": ["PASS_PREDICTED", "FAIL", "BLOCKED", "UNVERIFIED"],
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "identity": {"type": "object", "additionalProperties": {"type": "string"}},
+    "readonly_proof": {
+      "type": "object",
+      "required": ["method", "files", "changed_during_run"],
+      "properties": {
+        "method": {"const": "read-set-digest"},
+        "files": {"type": "integer", "minimum": 0},
+        "changed_during_run": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "selftest": {"type": ["object", "null"]},
+    "tickets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ticket", "title", "tier", "standing", "clauses"],
+        "properties": {
+          "ticket": {"pattern": "^T-[0-9]{3}$"},
+          "standing": {"enum": ["PASS_PREDICTED", "FAIL", "BLOCKED", "UNVERIFIED"]},
+          "clauses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["desc", "kind", "tier", "status", "detail"],
+              "properties": {
+                "tier": {"enum": ["T0", "T1", "T2"]},
+                "status": {"enum": ["PASS_PREDICTED", "FAIL", "BLOCKED", "UNVERIFIED"]}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

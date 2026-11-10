@@ -155,6 +155,46 @@ SKILLS = (
         verifier="receipt-output-and-subject-digests",
     ),
     SkillSpec(
+        name="cutover.plan",
+        description="Run cutover preflight and render the ordered switch plan without actuation.",
+        authority="CONSTRUCT",
+        input_class="CutoverSubject",
+        output_class="CutoverPlan",
+        requires_session=False,
+        verifier="deterministic-plan-digest",
+    ),
+    SkillSpec(
+        name="cutover.power",
+        description="Flip the declared backend targets after preflight (all-or-nothing, backed up).",
+        authority="DO_INTENT",
+        input_class="CutoverSubject",
+        output_class="CutoverState",
+        requires_confirmation=True,
+        requires_session=False,
+        verifier="target-digests-and-receipt",
+        refusals=_CONFIRMATION_REFUSAL,
+    ),
+    SkillSpec(
+        name="cutover.verify",
+        description="Report cutover standing; with replay, recompute digests and refuse on drift.",
+        authority="SELECT",
+        input_class="CutoverState",
+        output_class="CutoverVerification",
+        requires_session=False,
+        verifier="target-digest-replay",
+    ),
+    SkillSpec(
+        name="cutover.rollback",
+        description="Restore backed-up targets byte-exactly (inverse of cutover.power); refuses on drift.",
+        authority="DO_INTENT",
+        input_class="CutoverState",
+        output_class="CutoverState",
+        requires_confirmation=True,
+        requires_session=False,
+        verifier="target-digests-and-receipt",
+        refusals=_CONFIRMATION_REFUSAL,
+    ),
+    SkillSpec(
         name="topology.observe",
         description="Bind a bounded, digest-backed observation of an arbitrary repository.",
         authority="CONSTRUCT",
@@ -447,6 +487,18 @@ class Broker:
                     args.get("max_bytes", 512 * 1024 * 1024)
                 ),
             )
+        if name.startswith("cutover."):
+            from . import cutover as co
+
+            subject = self._path(args.get("subject_root", "."))
+            out = self._path(args.get("output_root", "cutover"))
+            if name == "cutover.plan":
+                return co.plan_cutover(subject, out, bool(args.get("dry_run", True)))
+            if name == "cutover.power":
+                return co.power_cutover(subject, out)
+            if name == "cutover.verify":
+                return co.verify_cutover(subject, out, bool(args.get("replay", False)))
+            return co.rollback_cutover(subject, out)
         if name == "topology.observe":
             from .topology import observe_repository
 
