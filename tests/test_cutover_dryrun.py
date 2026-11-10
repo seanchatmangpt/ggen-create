@@ -42,6 +42,7 @@ class CutoverDryRunTests(unittest.TestCase):
             self.assertEqual(evaluate(clause, self.home).status, PASS, clause.desc)
             mutated = flip(clause)
             self.assertIsNotNone(mutated)
+            assert mutated is not None
             self.assertNotEqual(evaluate(mutated, self.home).status, PASS, clause.desc)
 
     def test_cmd_clause_only_runs_syntax_checks_and_never_executes_repo_scripts(self):

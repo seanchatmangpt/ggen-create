@@ -223,7 +223,7 @@ def _fresh(a: dict[str, Any], home: Path) -> Result:
     recorded = json.loads(path.read_text()).get("source_shas", {})
     stale = []
     for name in a["repos"]:
-        head = _head(home / REPOS.get(name, name))
+        head = _head(home / REPOS.get(str(name), str(name)))
         if not head:
             return Result(BLOCKED, f"no git HEAD for {name}")
         if recorded.get(name) != head:
@@ -300,31 +300,3 @@ def combine(results: list[Result]) -> str:
         if any(r.status == status for r in results):
             return status
     return PASS
-
-
-def _git_digest(repo: Path, h: "hashlib._Hash", *args: str) -> None:
-    """Stream git output as bytes into the hash (diffs can exceed 100 MB, may be non-UTF8)."""
-    try:
-        proc = subprocess.Popen(["git", "-C", str(repo), *args], stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL)
-    except OSError:
-        return
-    assert proc.stdout is not None
-    for chunk in iter(lambda: proc.stdout.read(1 << 20), b""):
-        h.update(chunk)
-    proc.wait()
-
-
-def snapshot(home: Path, repos: list[str]) -> dict[str, str]:
-    """HEAD + status + tracked-diff digest per repo; detects tracked/untracked-name mutation."""
-    out = {}
-    for name in repos:
-        repo = home / REPOS.get(name, name)
-        if not (repo / ".git").exists():
-            out[name] = "NO_GIT"
-            continue
-        h = hashlib.sha256()
-        for args in (("rev-parse", "HEAD"), ("status", "--porcelain=v1"), ("diff",)):
-            _git_digest(repo, h, *args)
-        out[name] = h.hexdigest()
-    return out
